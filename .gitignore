@@ -1,0 +1,100 @@
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc
+*.pyo
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+*.manifest
+*.spec
+*.log
+*.sqlite3
+*.db
+*.DS_Store
+
+# Python environment variables file
+.env
+.env.*
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# VS Code settings
+.vscode/
+.history/
+
+# macOS
+.DS_Store
+
+# Node.js / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+/build
+/dist
+/.pnp
+.pnp.js
+
+# Frontend environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+*.out
+*.err
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+.cache
+nosetests.xml
+*.cover
+*.py,cover
+
+# Misc
+*.swp
+*~
+.project
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Temporary files and caches
+tmp/
+temp/
+
+# pytest cache
+.pytest_cache/
+.cache/
+
+# mypy
+.mypy_cache/
+
+# Ignore the folder containing downloaded models or large data, adjust if applicable
+backend/data/models/
+backend/data/cache/
+
+# Ignore frontend build/static outputs if you generate them
+frontend/build/
+frontend/dist/
