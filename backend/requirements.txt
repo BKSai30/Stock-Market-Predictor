@@ -1,0 +1,64 @@
+# Flask and Web Framework
+Flask
+Flask-CORS
+gunicorn
+
+# Data Analysis and Machine Learning
+pandas 
+numpy 
+scikit-learn 
+tensorflow 
+keras 
+xgboost 
+lightgbm 
+
+# Stock Data and Financial APIs
+yfinance
+alpha-vantage 
+nsepy 
+investpy 
+
+# News and Sentiment Analysis
+newsapi-python 
+textblob 
+vaderSentiment 
+transformers 
+torch 
+
+# Chart and Visualization Libraries
+matplotlib 
+plotly 
+mplfinance
+seaborn 
+renko 
+bokeh 
+
+# Technical Analysis
+TA-Lib 
+#talib-binary 
+
+# Web Scraping and HTTP
+requests 
+beautifulsoup4 
+selenium  
+# Database and Caching
+redis 
+SQLAlchemy 
+Flask-SQLAlchemy 
+
+# Utilities
+python-dotenv
+schedule
+APScheduler 
+pytz 
+datetime
+
+# Development and Testing
+pytest 
+pytest-flask 
+black 
+flake8 
+
+# Data Processing
+openpyxl 
+xlrd 
