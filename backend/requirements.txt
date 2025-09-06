@@ -1,64 +1,59 @@
 # Flask and Web Framework
-Flask
-Flask-CORS
-gunicorn
+Flask==3.0.3
+Flask-CORS==4.0.1
+Werkzeug==3.0.3
+gunicorn==22.0.0
 
 # Data Analysis and Machine Learning
-pandas 
-numpy 
-scikit-learn 
-tensorflow 
-keras 
-xgboost 
-lightgbm 
+pandas>=2.1.0
+numpy>=1.26.0
+scikit-learn>=1.4.0
+xgboost>=2.0.0
 
 # Stock Data and Financial APIs
-yfinance
-alpha-vantage 
-nsepy 
-investpy 
+yfinance>=0.2.25
+# alpha-vantage==2.3.1  # Keep if needed
+# nsepy==0.8            # Remove - not maintained
+# investpy==1.0.8       # Remove - deprecated
 
 # News and Sentiment Analysis
-newsapi-python 
-textblob 
-vaderSentiment 
-transformers 
-torch 
+newsapi-python>=0.2.7
+textblob>=0.18.0
+vaderSentiment>=3.3.2
+# Skip transformers and torch for now - too heavy for Python 3.13
 
 # Chart and Visualization Libraries
-matplotlib 
-plotly 
+matplotlib>=3.8.0
+plotly>=5.17.0
 mplfinance
-seaborn 
-renko 
-bokeh 
+seaborn>=0.13.0
 
-# Technical Analysis
-TA-Lib 
-#talib-binary 
+# Technical Analysis (Replace TA-Lib with pandas-ta)
+pandas-ta==0.3.14b0
 
 # Web Scraping and HTTP
-requests 
-beautifulsoup4 
-selenium  
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+selenium>=4.15.0
+
 # Database and Caching
-redis 
-SQLAlchemy 
-Flask-SQLAlchemy 
+redis>=5.0.0
+SQLAlchemy>=2.0.23
+Flask-SQLAlchemy>=3.1.0
 
 # Utilities
-python-dotenv
-schedule
-APScheduler 
-pytz 
-datetime
+python-dateutil>=2.8.2
+python-dotenv>=1.0.0
+schedule>=1.2.0
+APScheduler>=3.10.4
+pytz>=2024.1
 
-# Development and Testing
-pytest 
-pytest-flask 
-black 
-flake8 
+# Development and Testing (Optional)
+pytest>=7.4.0
+pytest-flask>=1.3.0
+black>=23.12.0
+flake8>=7.0.0
 
 # Data Processing
-openpyxl 
-xlrd 
+openpyxl>=3.1.2
+xlrd>=2.0.1
