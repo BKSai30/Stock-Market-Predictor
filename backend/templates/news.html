@@ -1,1090 +1,768 @@
-// Global variables
-let currentTechnicalChart = null;
-let predictionChartInstance = null;
-let currentStockSymbol = null;
-
-// Initialize the application
-window.initializeApp = function() {
-    console.log('Initializing Stock Market Predictor...');
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market News - Stock Market Predictor</title>
     
-    // Set up form submission handler
-    const predictionForm = document.getElementById('predictionForm');
-    if (predictionForm) {
-        predictionForm.addEventListener('submit', handlePredictionSubmit);
-    }
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     
-    // Set up stock search functionality
-    const stockInput = document.getElementById('stockInput');
-    const searchStockBtn = document.getElementById('searchStockBtn');
-    
-    if (stockInput && searchStockBtn) {
-        searchStockBtn.addEventListener('click', function() {
-            searchStock(stockInput.value);
-        });
-        
-        stockInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                searchStock(this.value);
-            }
-        });
-    }
-    
-    // Set up quick stock buttons
-    const quickStockButtons = document.querySelectorAll('.quick-stock-btn');
-    quickStockButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const symbol = this.dataset.symbol;
-            if (stockInput) {
-                stockInput.value = symbol;
-            }
-            // Highlight selected button
-            quickStockButtons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-    
-    // Set up volatility filter buttons
-    const volatilityButtons = document.querySelectorAll('.volatility-btn');
-    volatilityButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            volatilityButtons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            const category = this.dataset.category;
-            loadTopStocks(category);
-        });
-    });
-    
-    // Set up chart type selector
-    const chartTypeSelect = document.getElementById('chartTypeSelect');
-    if (chartTypeSelect) {
-        chartTypeSelect.addEventListener('change', function() {
-            if (currentStockSymbol) {
-                loadTechnicalChart(currentStockSymbol, this.value);
-            }
-        });
-    }
-    
-    // Set up calibration button
-    const calibrateBtn = document.getElementById('calibrateBtn');
-    if (calibrateBtn) {
-        calibrateBtn.addEventListener('click', handleCalibration);
-    }
-    
-    // Initialize hero chart
-    initializeHeroChart();
-    
-    // Load market overview
-    loadMarketOverview();
-    
-    // Load default top stocks
-    loadTopStocks('safe');
-    
-    console.log('App initialized successfully!');
-};
-
-// Stock search functionality
-async function searchStock(userInput) {
-    if (!userInput.trim()) {
-        showToast('Error', 'Please enter a stock name or symbol', 'error');
-        return;
-    }
-    
-    try {
-        const response = await fetch('/api/search-stock', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ input: userInput })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            if (data.found) {
-                // Stock found - update input with proper symbol
-                const stockInput = document.getElementById('stockInput');
-                if (stockInput) {
-                    stockInput.value = data.symbol;
-                }
-                showToast('Success', `Found: ${data.name} (${data.symbol})`, 'success');
-            } else {
-                // Stock not found - but try with suggested symbol
-                showToast('Info', data.message, 'info');
-            }
-        } else {
-            showToast('Error', data.error || 'Search failed', 'error');
-        }
-    } catch (error) {
-        console.error('Stock search error:', error);
-        showToast('Error', 'Network error during search', 'error');
-    }
-}
-
-// Handle prediction form submission
-function handlePredictionSubmit(event) {
-    event.preventDefault();
-    
-    const stockInput = document.getElementById('stockInput');
-    const predictionDays = document.getElementById('predictionDays');
-    
-    const symbol = stockInput ? stockInput.value.trim() : '';
-    const days = predictionDays ? predictionDays.value : 5;
-    
-    if (!symbol) {
-        showToast('Error', 'Please enter a stock name or symbol', 'error');
-        return;
-    }
-    
-    makePrediction(symbol, days);
-}
-
-// Make prediction API call
-async function makePrediction(symbol, days) {
-    currentStockSymbol = symbol.toUpperCase();
-    
-    // Show loading state
-    const predictionInitial = document.getElementById('predictionInitial');
-    const predictionResults = document.getElementById('predictionResults');
-    const predictionLoading = document.getElementById('predictionLoading');
-    
-    if (predictionInitial) predictionInitial.style.display = 'none';
-    if (predictionResults) predictionResults.classList.add('d-none');
-    if (predictionLoading) predictionLoading.classList.remove('d-none');
-    
-    try {
-        // Call Flask API
-        const response = await fetch('/api/predict', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                symbol: currentStockSymbol,
-                days_ahead: parseInt(days)
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`API Error: ${response.status}`);
+    <style>
+        :root[data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8f9fa;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --border-color: #dee2e6;
+            --hero-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --card-bg: #ffffff;
+            --navbar-bg: #ffffff;
         }
         
-        const data = await response.json();
-        
-        // Hide loading, show results
-        if (predictionLoading) predictionLoading.classList.add('d-none');
-        if (predictionResults) predictionResults.classList.remove('d-none');
-        
-        // Show calibrate button
-        const calibrateBtn = document.getElementById('calibrateBtn');
-        if (calibrateBtn) calibrateBtn.style.display = 'block';
-        
-        // Update UI with results
-        updatePredictionResults(data);
-        
-        // Load technical chart for the predicted stock
-        const chartTypeSelect = document.getElementById('chartTypeSelect');
-        const chartType = chartTypeSelect ? chartTypeSelect.value : 'candlestick';
-        loadTechnicalChart(currentStockSymbol, chartType);
-        
-    } catch (error) {
-        console.error('Prediction error:', error);
-        
-        // Hide loading
-        if (predictionLoading) predictionLoading.classList.add('d-none');
-        if (predictionInitial) predictionInitial.style.display = 'block';
-        
-        // Show error message
-        showToast('Prediction Error', `Failed to get prediction: ${error.message}`, 'error');
-    }
-}
-
-// Update UI with prediction results
-function updatePredictionResults(data) {
-    // Update stock info
-    const stockName = document.getElementById('stockName');
-    const currentPrice = document.getElementById('currentPrice');
-    const predictedPrice = document.getElementById('predictedPrice');
-    const predictionPeriodLabel = document.getElementById('predictionPeriodLabel');
-    
-    if (stockName) stockName.textContent = data.name || data.symbol || 'Unknown Stock';
-    if (currentPrice) currentPrice.textContent = `₹${data.current_price || 'N/A'}`;
-    if (predictedPrice) predictedPrice.textContent = `₹${data.predicted_price || 'N/A'}`;
-    
-    // Fix: Update prediction period label correctly
-    if (predictionPeriodLabel) {
-        predictionPeriodLabel.textContent = `(${data.days_ahead}-day)`;
-    }
-    
-    // Update price change
-    const priceChange = data.predicted_price - data.current_price;
-    const priceChangeElement = document.getElementById('priceChange');
-    if (priceChangeElement) {
-        if (priceChange > 0) {
-            priceChangeElement.textContent = `+₹${priceChange.toFixed(2)} (+${((priceChange/data.current_price)*100).toFixed(2)}%)`;
-            priceChangeElement.className = 'price-change text-success';
-        } else {
-            priceChangeElement.textContent = `-₹${Math.abs(priceChange).toFixed(2)} (${((priceChange/data.current_price)*100).toFixed(2)}%)`;
-            priceChangeElement.className = 'price-change text-danger';
-        }
-    }
-    
-    // Update confidence
-    const confidence = data.confidence || 50;
-    const confidenceBar = document.getElementById('confidenceBar');
-    if (confidenceBar) {
-        confidenceBar.style.width = `${confidence}%`;
-        confidenceBar.textContent = `${confidence}%`;
-    }
-    
-    // Update recommendation
-    const recommendationBadge = document.getElementById('recommendationBadge');
-    const recommendation = data.recommendation || 'HOLD';
-    if (recommendationBadge) {
-        recommendationBadge.textContent = recommendation;
-        
-        if (recommendation === 'BUY' || recommendation === 'STRONG BUY') {
-            recommendationBadge.className = 'badge fs-6 bg-success';
-        } else if (recommendation === 'SELL' || recommendation === 'STRONG SELL') {
-            recommendationBadge.className = 'badge fs-6 bg-danger';
-        } else {
-            recommendationBadge.className = 'badge fs-6 bg-warning';
-        }
-    }
-    
-    // Update enhanced recommendation
-    updateEnhancedRecommendation(data.enhanced_recommendation);
-    
-    // Create prediction chart
-    createPredictionChart(data.historical_data, data.prediction_data);
-    
-    // Update AI Analysis
-    updateAIAnalysis(data.ai_analysis);
-    
-    // Update Sentiment Analysis
-    updateSentimentAnalysis(data.sentiment_analysis);
-}
-
-// Update enhanced recommendation display
-function updateEnhancedRecommendation(recommendation) {
-    const container = document.getElementById('enhancedRecommendation');
-    if (!container || !recommendation) return;
-    
-    container.innerHTML = `
-        <div class="enhanced-rec-card p-3 border rounded">
-            <h6 class="text-primary mb-2">
-                <i class="fas fa-robot me-2"></i>
-                Enhanced AI Recommendation
-            </h6>
-            <div class="recommendation-action mb-2">
-                <strong>${recommendation.action}</strong>
-                <span class="badge bg-info ms-2">${recommendation.strength} Confidence</span>
-            </div>
-            <div class="risk-level mb-2">
-                <strong>Risk Level:</strong> 
-                <span class="badge ${getRiskBadgeClass(recommendation.risk_level)}">${recommendation.risk_level}</span>
-            </div>
-            <div class="reasoning">
-                <strong>Key Points:</strong>
-                <ul class="mt-1 mb-0">
-                    ${recommendation.reasoning.map(reason => `<li>${reason}</li>`).join('')}
-                </ul>
-            </div>
-            ${recommendation.target_price_range ? `
-                <div class="mt-2">
-                    <strong>Target Range:</strong> ${recommendation.target_price_range}
-                </div>
-            ` : ''}
-            ${recommendation.stop_loss_suggestion ? `
-                <div class="mt-1">
-                    <strong>Stop Loss:</strong> ${recommendation.stop_loss_suggestion}
-                </div>
-            ` : ''}
-        </div>
-    `;
-}
-
-// Create prediction chart
-function createPredictionChart(historicalData, predictionData) {
-    const canvas = document.getElementById('predictionChart');
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Destroy existing chart if it exists
-    if (predictionChartInstance) {
-        predictionChartInstance.destroy();
-    }
-    
-    // Prepare data
-    const historicalDates = historicalData.map(d => d.date);
-    const historicalPrices = historicalData.map(d => d.price);
-    const predictionDates = predictionData.map(d => d.date);
-    const predictionPrices = predictionData.map(d => d.price);
-    
-    // Combine dates for x-axis
-    const allDates = [...historicalDates, ...predictionDates.slice(1)]; // Avoid duplicate current date
-    
-    predictionChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: allDates,
-            datasets: [
-                {
-                    label: 'Historical Price',
-                    data: [...historicalPrices, ...Array(predictionDates.length - 1).fill(null)],
-                    borderColor: '#007bff',
-                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                    borderWidth: 2,
-                    fill: false,
-                    tension: 0.4,
-                    pointRadius: 3
-                },
-                {
-                    label: 'Predicted Price',
-                    data: [...Array(historicalDates.length - 1).fill(null), ...predictionPrices],
-                    borderColor: '#28a745',
-                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    borderWidth: 2,
-                    borderDash: [5, 5],
-                    fill: false,
-                    tension: 0.4,
-                    pointRadius: 4
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                title: {
-                    display: true,
-                    text: 'Stock Price Prediction Chart'
-                }
-            },
-            scales: {
-                x: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: 'Date'
-                    }
-                },
-                y: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: 'Price (₹)'
-                    }
-                }
-            },
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            }
-        }
-    });
-}
-
-// Handle calibration
-async function handleCalibration() {
-    if (!currentStockSymbol) {
-        showToast('Error', 'Please predict a stock first', 'error');
-        return;
-    }
-    
-    const predictionDays = document.getElementById('predictionDays');
-    const days = predictionDays ? predictionDays.value : 5;
-    
-    showToast('Info', 'Starting model calibration...', 'info');
-    
-    try {
-        const response = await fetch('/api/calibrate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                symbol: currentStockSymbol,
-                days_ahead: parseInt(days)
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            showToast('Success', data.message, 'success');
-            
-            // Re-run prediction with calibrated model
-            setTimeout(() => {
-                makePrediction(currentStockSymbol, days);
-            }, 2000);
-        } else {
-            showToast('Error', data.error || 'Calibration failed', 'error');
-        }
-    } catch (error) {
-        console.error('Calibration error:', error);
-        showToast('Error', 'Calibration failed', 'error');
-    }
-}
-
-// Update AI Analysis section
-function updateAIAnalysis(analysis) {
-    const container = document.getElementById('aiAnalysis');
-    if (!container || !analysis) return;
-    
-    container.innerHTML = `
-        <div class="mb-3">
-            <h6 class="text-primary d-flex align-items-center">
-                Trend Analysis
-                <i class="fas fa-info-circle info-tooltip ms-2">
-                    <div class="tooltip-content">
-                        <strong>AI Analysis Components:</strong><br>
-                        • <strong>Trend:</strong> Overall price direction (bullish/bearish)<br>
-                        • <strong>Strength:</strong> How strong the trend is<br>
-                        • <strong>Risk Level:</strong> Investment risk assessment
-                    </div>
-                </i>
-            </h6>
-            <p><strong>Trend:</strong> ${analysis.trend}</p>
-            <p><strong>Strength:</strong> ${analysis.strength}</p>
-            <p><strong>Risk Level:</strong> <span class="badge ${getRiskBadgeClass(analysis.risk_level)}">${analysis.risk_level}</span></p>
-        </div>
-        
-        <div class="mb-3">
-            <h6 class="text-primary">Key Factors</h6>
-            <ul class="list-unstyled">
-                ${analysis.key_factors.map(factor => `<li><i class="fas fa-chevron-right text-muted me-2"></i>${factor}</li>`).join('')}
-            </ul>
-        </div>
-        
-        <div class="mb-3">
-            <h6 class="text-primary">Model Information</h6>
-            <p><strong>Model:</strong> ${analysis.model_used}</p>
-            <p><strong>Data Quality:</strong> ${analysis.data_quality}</p>
-        </div>
-    `;
-}
-
-// Update Sentiment Analysis section
-function updateSentimentAnalysis(analysis) {
-    const container = document.getElementById('sentimentAnalysis');
-    if (!container || !analysis) return;
-    
-    container.innerHTML = `
-        <div class="mb-3">
-            <h6 class="text-primary d-flex align-items-center">
-                Overall Sentiment
-                <i class="fas fa-info-circle info-tooltip ms-2">
-                    <div class="tooltip-content">
-                        <strong>Sentiment Analysis:</strong><br>
-                        • <strong>Overall:</strong> Combined sentiment score<br>
-                        • <strong>News:</strong> Analysis of recent news articles<br>
-                        • <strong>Social:</strong> Social media sentiment tracking
-                    </div>
-                </i>
-            </h6>
-            <div class="d-flex align-items-center mb-2">
-                <span class="badge ${getSentimentBadgeClass(analysis.overall_sentiment)} me-2">${analysis.overall_sentiment}</span>
-                <span class="text-muted">Score: ${analysis.sentiment_score}</span>
-            </div>
-        </div>
-        
-        <div class="mb-3">
-            <h6 class="text-primary">Sentiment Breakdown</h6>
-            <p><strong>News Sentiment:</strong> ${analysis.news_sentiment}</p>
-            <p><strong>Social Sentiment:</strong> ${analysis.social_sentiment}</p>
-        </div>
-        
-        <div class="mb-3">
-            <h6 class="text-primary">Key Themes</h6>
-            <div class="d-flex flex-wrap gap-1">
-                ${analysis.key_themes.map(theme => `<span class="badge bg-secondary">${theme}</span>`).join('')}
-            </div>
-        </div>
-        
-        <div class="mb-3">
-            <h6 class="text-primary">Sources</h6>
-            <p class="text-muted small">${analysis.sentiment_sources.join(', ')}</p>
-        </div>
-    `;
-}
-
-// Load technical chart data
-async function loadTechnicalChart(symbol, chartType = 'candlestick') {
-    if (!symbol) return;
-    
-    try {
-        console.log(`Loading ${chartType} chart for ${symbol}`);
-        
-        const response = await fetch(`/api/technical-chart/${symbol}?type=${chartType}`);
-        if (!response.ok) throw new Error(`API Error: ${response.status}`);
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            displayTechnicalChart(data);
-            displayChartPatternAnalysis(data.patterns, data.indicators);
-        } else {
-            throw new Error(data.error || 'Failed to load chart data');
+        :root[data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #e0e0e0;
+            --border-color: #404040;
+            --hero-bg: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            --card-bg: #2d2d2d;
+            --navbar-bg: #2d2d2d;
         }
         
-    } catch (error) {
-        console.error('Failed to load technical chart:', error);
-        showTechnicalChartError(error.message);
-    }
-}
-
-// Display technical chart based on type
-function displayTechnicalChart(data) {
-    const container = document.getElementById('technicalChart');
-    if (!container) return;
-    
-    // Clear existing content
-    container.innerHTML = '';
-    
-    // Create chart container
-    const chartContainer = document.createElement('div');
-    chartContainer.id = 'technicalChartContainer';
-    chartContainer.style.height = '400px';
-    container.appendChild(chartContainer);
-    
-    switch (data.chart_type) {
-        case 'candlestick':
-            displayCandlestickChart(data.data, data.symbol);
-            break;
-        case 'renko':
-            displayRenkoChart(data.data, data.symbol);
-            break;
-        case 'kagi':
-            displayKagiChart(data.data, data.symbol);
-            break;
-        case 'point_figure':
-            displayPointFigureChart(data.data, data.symbol);
-            break;
-        case 'breakout':
-            displayBreakoutChart(data.data, data.symbol);
-            break;
-        default:
-            displayCandlestickChart(data.data, data.symbol);
-    }
-}
-
-// Display candlestick chart using Plotly
-function displayCandlestickChart(data, symbol) {
-    const trace = {
-        x: data.map(d => d.date),
-        close: data.map(d => d.close),
-        decreasing: { line: { color: '#ff4444' } },
-        high: data.map(d => d.high),
-        increasing: { line: { color: '#00ff00' } },
-        low: data.map(d => d.low),
-        open: data.map(d => d.open),
-        type: 'candlestick',
-        xaxis: 'x',
-        yaxis: 'y'
-    };
-    
-    const layout = {
-        title: `${symbol} - Candlestick Chart`,
-        xaxis: { title: 'Date', rangeslider: { visible: false } },
-        yaxis: { title: 'Price (₹)' },
-        height: 400,
-        margin: { l: 50, r: 50, t: 50, b: 50 }
-    };
-    
-    Plotly.newPlot('technicalChartContainer', [trace], layout);
-}
-
-// Display Renko chart
-function displayRenkoChart(data, symbol) {
-    const traces = [];
-    
-    data.forEach((brick, index) => {
-        const color = brick.direction === 1 ? '#00ff00' : '#ff4444';
-        
-        traces.push({
-            x: [index, index + 1, index + 1, index, index],
-            y: [brick.open, brick.open, brick.close, brick.close, brick.open],
-            fill: 'toself',
-            fillcolor: color,
-            line: { color: color },
-            mode: 'lines',
-            name: `Brick ${index + 1}`,
-            showlegend: false
-        });
-    });
-    
-    const layout = {
-        title: `${symbol} - Renko Chart`,
-        xaxis: { title: 'Brick Number' },
-        yaxis: { title: 'Price (₹)' },
-        height: 400,
-        margin: { l: 50, r: 50, t: 50, b: 50 }
-    };
-    
-    Plotly.newPlot('technicalChartContainer', traces, layout);
-}
-
-// Display Kagi chart
-function displayKagiChart(data, symbol) {
-    const x = [];
-    const y = [];
-    const colors = [];
-    
-    data.forEach((point, index) => {
-        x.push(index);
-        y.push(point.price);
-        colors.push(point.direction === 1 ? '#00ff00' : '#ff4444');
-    });
-    
-    const trace = {
-        x: x,
-        y: y,
-        mode: 'lines+markers',
-        line: { color: '#333333', width: 2 },
-        marker: { 
-            color: colors,
-            size: 6,
-            symbol: data.map(d => d.reversal ? 'diamond' : 'circle')
-        },
-        type: 'scatter'
-    };
-    
-    const layout = {
-        title: `${symbol} - Kagi Chart`,
-        xaxis: { title: 'Time Points' },
-        yaxis: { title: 'Price (₹)' },
-        height: 400,
-        margin: { l: 50, r: 50, t: 50, b: 50 }
-    };
-    
-    Plotly.newPlot('technicalChartContainer', [trace], layout);
-}
-
-// Display Point & Figure chart
-function displayPointFigureChart(data, symbol) {
-    const traces = [];
-    let columnIndex = 0;
-    
-    data.forEach((column, index) => {
-        const symbol_char = column.type === 'X' ? 'X' : 'O';
-        const color = column.type === 'X' ? '#00ff00' : '#ff4444';
-        
-        for (let i = 0; i < column.count; i++) {
-            traces.push({
-                x: [columnIndex],
-                y: [column.price + (i * (column.price / column.count))],
-                mode: 'text',
-                text: [symbol_char],
-                textfont: { color: color, size: 16 },
-                showlegend: false
-            });
-        }
-        columnIndex++;
-    });
-    
-    const layout = {
-        title: `${symbol} - Point & Figure Chart`,
-        xaxis: { title: 'Column' },
-        yaxis: { title: 'Price (₹)' },
-        height: 400,
-        margin: { l: 50, r: 50, t: 50, b: 50 }
-    };
-    
-    Plotly.newPlot('technicalChartContainer', traces, layout);
-}
-
-// Display Breakout chart
-function displayBreakoutChart(data, symbol) {
-    const trace1 = {
-        x: data.map(d => d.date),
-        y: data.map(d => d.price),
-        mode: 'lines',
-        name: 'Price',
-        line: { color: '#007bff' }
-    };
-    
-    const trace2 = {
-        x: data.map(d => d.date),
-        y: data.map(d => d.resistance),
-        mode: 'lines',
-        name: 'Resistance',
-        line: { color: '#ff4444', dash: 'dash' }
-    };
-    
-    const trace3 = {
-        x: data.map(d => d.date),
-        y: data.map(d => d.support),
-        mode: 'lines',
-        name: 'Support',
-        line: { color: '#00ff00', dash: 'dash' }
-    };
-    
-    const layout = {
-        title: `${symbol} - Breakout Chart`,
-        xaxis: { title: 'Date' },
-        yaxis: { title: 'Price (₹)' },
-        height: 400,
-        margin: { l: 50, r: 50, t: 50, b: 50 }
-    };
-    
-    Plotly.newPlot('technicalChartContainer', [trace1, trace2, trace3], layout);
-}
-
-// Display chart pattern analysis
-function displayChartPatternAnalysis(patterns, indicators) {
-    // Show pattern analysis section
-    const patternSection = document.getElementById('chartPatternAnalysis');
-    if (patternSection) {
-        patternSection.style.display = 'block';
-    }
-    
-    // Update candlestick patterns
-    const candlestickPatternsContainer = document.getElementById('candlestickPatterns');
-    if (candlestickPatternsContainer && patterns.detected_patterns) {
-        candlestickPatternsContainer.innerHTML = `
-            <h6 class="text-primary mb-3">Detected Patterns</h6>
-            ${patterns.detected_patterns.map(pattern => 
-                `<div class="mb-2">
-                    <span class="badge bg-info">${pattern}</span>
-                </div>`
-            ).join('')}
-        `;
-    }
-    
-    // Update technical indicators with tooltips
-    const technicalIndicatorsContainer = document.getElementById('technicalIndicators');
-    if (technicalIndicatorsContainer && indicators) {
-        technicalIndicatorsContainer.innerHTML = `
-            <h6 class="text-primary mb-3">Key Indicators</h6>
-            <div class="mb-2">
-                <strong>RSI:</strong> ${indicators.rsi ? indicators.rsi.toFixed(2) : 'N/A'}
-                <i class="fas fa-info-circle info-tooltip ms-2" style="cursor: help;">
-                    <div class="tooltip-content">
-                        <strong>RSI (Relative Strength Index):</strong><br>
-                        • Range: 0-100<br>
-                        • Above 70: Overbought (potential sell signal)<br>
-                        • Below 30: Oversold (potential buy signal)<br>
-                        • 50: Neutral zone
-                    </div>
-                </i>
-            </div>
-            <div class="mb-2">
-                <strong>MACD:</strong> ${indicators.macd ? indicators.macd.toFixed(2) : 'N/A'}
-                <i class="fas fa-info-circle info-tooltip ms-2" style="cursor: help;">
-                    <div class="tooltip-content">
-                        <strong>MACD:</strong><br>
-                        • Moving Average Convergence Divergence<br>
-                        • Positive: Bullish momentum<br>
-                        • Negative: Bearish momentum<br>
-                        • Crossovers indicate trend changes
-                    </div>
-                </i>
-            </div>
-            <div class="mb-2">
-                <strong>SMA 20:</strong> ₹${indicators.sma_20 ? indicators.sma_20.toFixed(2) : 'N/A'}
-                <i class="fas fa-info-circle info-tooltip ms-2" style="cursor: help;">
-                    <div class="tooltip-content">
-                        <strong>SMA 20 (20-day Moving Average):</strong><br>
-                        • Average price over last 20 days<br>
-                        • Price above SMA: Bullish<br>
-                        • Price below SMA: Bearish<br>
-                        • Used for trend identification
-                    </div>
-                </i>
-            </div>
-            <div class="mb-2">
-                <strong>SMA 50:</strong> ₹${indicators.sma_50 ? indicators.sma_50.toFixed(2) : 'N/A'}
-                <i class="fas fa-info-circle info-tooltip ms-2" style="cursor: help;">
-                    <div class="tooltip-content">
-                        <strong>SMA 50 (50-day Moving Average):</strong><br>
-                        • Average price over last 50 days<br>
-                        • Long-term trend indicator<br>
-                        • Golden Cross: SMA 20 > SMA 50 (bullish)<br>
-                        • Death Cross: SMA 20 < SMA 50 (bearish)
-                    </div>
-                </i>
-            </div>
-        `;
-    }
-    
-    // Update support & resistance
-    const supportResistanceContainer = document.getElementById('supportResistance');
-    if (supportResistanceContainer && patterns) {
-        supportResistanceContainer.innerHTML = `
-            <h6 class="text-primary mb-3">Key Levels</h6>
-            <div class="mb-2">
-                <strong>Resistance:</strong> 
-                ${patterns.resistance_levels.map(level => `₹${level}`).join(', ')}
-                <i class="fas fa-info-circle info-tooltip ms-2" style="cursor: help;">
-                    <div class="tooltip-content">
-                        <strong>Resistance Level:</strong><br>
-                        Price level where selling pressure increases.<br>
-                        Stock tends to face difficulty moving above this level.
-                    </div>
-                </i>
-            </div>
-            <div class="mb-2">
-                <strong>Support:</strong> 
-                ${patterns.support_levels.map(level => `₹${level}`).join(', ')}
-                <i class="fas fa-info-circle info-tooltip ms-2" style="cursor: help;">
-                    <div class="tooltip-content">
-                        <strong>Support Level:</strong><br>
-                        Price level where buying interest emerges.<br>
-                        Stock tends to bounce back from this level.
-                    </div>
-                </i>
-            </div>
-        `;
-    }
-}
-
-// Show technical chart error
-function showTechnicalChartError(message) {
-    const container = document.getElementById('technicalChart');
-    if (container) {
-        container.innerHTML = `
-            <div class="text-center py-5 text-danger">
-                <i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i>
-                <p class="mt-2">Error loading chart: ${message}</p>
-            </div>
-        `;
-    }
-}
-
-// Load and display top stocks
-async function loadTopStocks(category) {
-    try {
-        console.log(`Loading top stocks for category: ${category}`);
-        const response = await fetch(`/api/top-stocks?category=${category}`);
-        
-        if (!response.ok) {
-            throw new Error(`API Error: ${response.status}`);
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Roboto', sans-serif;
+            transition: all 0.3s ease;
         }
         
-        const data = await response.json();
-        displayTopStocks(data.stocks);
+        .navbar {
+            background-color: var(--navbar-bg) !important;
+            border-bottom: 1px solid var(--border-color);
+        }
         
-    } catch (error) {
-        console.error('Failed to load top stocks:', error);
-        showToast('Error', `Failed to load top stocks: ${error.message}`, 'error');
-    }
-}
-
-// Display top stocks in the UI
-function displayTopStocks(stocks) {
-    const container = document.getElementById('topStocksList');
-    if (!container) {
-        console.error('Top stocks container not found');
-        return;
-    }
-    
-    container.innerHTML = '';
-    
-    stocks.forEach(stock => {
-        const stockCard = createStockCard(stock);
-        container.appendChild(stockCard);
-    });
-}
-
-// Create a stock card element
-function createStockCard(stock) {
-    const card = document.createElement('div');
-    card.className = 'col-lg-4 col-md-6 mb-4';
-    
-    const priceChangeClass = stock.price_change >= 0 ? 'text-success' : 'text-danger';
-    const priceChangeIcon = stock.price_change >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
-    
-    card.innerHTML = `
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h6 class="mb-0">${stock.symbol}</h6>
-                <span class="badge bg-secondary">${stock.sector}</span>
-            </div>
-            <div class="card-body">
-                <h6 class="card-title">${stock.name}</h6>
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between">
-                        <span>Current Price:</span>
-                        <strong>₹${stock.current_price}</strong>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <span>Predicted Price:</span>
-                        <strong class="text-success">₹${stock.predicted_price}</strong>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <span>Change:</span>
-                        <span class="${priceChangeClass}">
-                            <i class="fas ${priceChangeIcon}"></i>
-                            ${Math.abs(stock.price_change).toFixed(2)}%
-                        </span>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <span>Confidence:</span>
-                        <span>${stock.prediction_confidence}%</span>
-                    </div>
-                </div>
-                <button class="btn btn-sm btn-primary w-100" onclick="selectStockForAnalysis('${stock.symbol}')">
-                    Analyze Stock
+        .navbar-brand, .nav-link {
+            color: var(--text-primary) !important;
+        }
+        
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .theme-toggle {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 50px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+        
+        .theme-toggle:hover {
+            background-color: var(--bg-secondary);
+            transform: scale(1.1);
+        }
+        
+        .hero-section {
+            background: var(--hero-bg);
+            padding: 60px 0;
+            color: white !important;
+        }
+        
+        .hero-section h1, .hero-section p {
+            color: white !important;
+        }
+        
+        .news-card {
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+        
+        .news-summary {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        .news-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .category-badge {
+            font-size: 0.75rem;
+        }
+        
+        .ai-chat-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .ai-chat-toggle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--hero-bg);
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .ai-chat-toggle:hover {
+            transform: scale(1.1);
+        }
+        
+        .ai-chat-panel {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            width: 350px;
+            height: 500px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+            flex-direction: column;
+        }
+        
+        .ai-chat-header {
+            background: var(--hero-bg);
+            color: white;
+            padding: 15px;
+            border-radius: 15px 15px 0 0;
+            font-weight: 600;
+        }
+        
+        .ai-chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            max-height: 350px;
+            background-color: var(--bg-secondary);
+        }
+        
+        .ai-chat-input {
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--card-bg);
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+        }
+        
+        .message.user {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+        }
+        
+        .message.ai {
+            background: var(--card-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .bg-light {
+            background-color: var(--bg-secondary) !important;
+        }
+        
+        .text-muted {
+            color: var(--text-secondary) !important;
+        }
+        
+        .form-control {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+        
+        .form-control:focus {
+            background-color: var(--bg-secondary);
+            border-color: #667eea;
+            color: var(--text-primary);
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .navbar-toggler {
+            border-color: var(--border-color);
+        }
+        
+        .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%2833, 37, 41, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+        
+        [data-theme="dark"] .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+        
+        .btn-outline-primary {
+            color: #007bff;
+            border-color: #007bff;
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
+        
+        .btn-outline-primary.active {
+            background-color: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
+        
+        .category-filter {
+            transition: all 0.3s ease;
+        }
+        
+        .modal-content {
+            background-color: var(--card-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .btn-close {
+            filter: var(--text-primary) == '#ffffff' ? invert(1) : invert(0);
+        }
+        
+        .article-content p {
+            margin-bottom: 1rem;
+            line-height: 1.7;
+        }
+        
+        .article-content strong {
+            color: var(--text-primary);
+        }
+        
+        .loading-spinner {
+            text-align: center;
+            padding: 3rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/dashboard">
+                <i class="fas fa-newspaper me-2"></i>
+                Market News
+            </a>
+            <div class="d-flex align-items-center">
+                <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+                    <i class="fas fa-moon" id="themeIcon"></i>
+                </button>
+                <button class="navbar-toggler ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
                 </button>
             </div>
-        </div>
-    `;
-    
-    return card;
-}
-
-// Select stock for detailed analysis
-window.selectStockForAnalysis = function(symbol) {
-    const stockInput = document.getElementById('stockInput');
-    if (stockInput) {
-        stockInput.value = symbol;
-    }
-    scrollToSection('prediction');
-};
-
-// Initialize hero chart
-function initializeHeroChart() {
-    const canvas = document.getElementById('heroChart');
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Generate sample market data
-    const dates = [];
-    const prices = [];
-    const baseDate = new Date();
-    let price = 15000;
-    
-    for (let i = 30; i >= 0; i--) {
-        const date = new Date(baseDate);
-        date.setDate(date.getDate() - i);
-        dates.push(date.toLocaleDateString());
-        
-        price += (Math.random() - 0.5) * 300;
-        prices.push(Math.max(price, 10000));
-    }
-    
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: [{
-                label: 'Market Index',
-                data: prices,
-                borderColor: '#ffffff',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                x: {
-                    display: false
-                },
-                y: {
-                    display: false
-                }
-            }
-        }
-    });
-}
-
-// Load market overview
-function loadMarketOverview() {
-    const container = document.getElementById('marketIndices');
-    if (!container) return;
-    
-    // Sample market data
-    const indices = [
-        { name: 'NIFTY 50', value: '19,674.25', change: '+124.35 (+0.64%)', positive: true },
-        { name: 'SENSEX', value: '65,834.69', change: '+389.75 (+0.60%)', positive: true },
-        { name: 'NIFTY BANK', value: '44,789.15', change: '-89.45 (-0.20%)', positive: false },
-        { name: 'NIFTY IT', value: '31,247.80', change: '+267.90 (+0.86%)', positive: true }
-    ];
-    
-    container.innerHTML = indices.map(index => `
-        <div class="col-md-3 col-6">
-            <div class="text-center">
-                <h6 class="mb-1">${index.name}</h6>
-                <div class="fw-bold">${index.value}</div>
-                <small class="${index.positive ? 'text-success' : 'text-danger'}">${index.change}</small>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/portfolio">Portfolio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/news">News</a>
+                    </li>
+                    <li class="nav-item">
+                        <button class="btn btn-outline-primary btn-sm ms-2" onclick="logout()">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout
+                        </button>
+                    </li>
+                </ul>
             </div>
         </div>
-    `).join('');
-}
+    </nav>
 
-// Helper functions for styling
-function getRiskBadgeClass(riskLevel) {
-    switch(riskLevel.toLowerCase()) {
-        case 'low': return 'bg-success';
-        case 'medium': return 'bg-warning';
-        case 'high': return 'bg-danger';
-        default: return 'bg-secondary';
-    }
-}
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <h1 class="display-4 fw-bold mb-4">Latest Market News</h1>
+                    <p class="lead mb-4">
+                        Stay updated with the latest financial news, market trends, and expert analysis 
+                        to make informed investment decisions.
+                    </p>
+                </div>
+                <div class="col-lg-4 text-center">
+                    <i class="fas fa-chart-line" style="font-size: 6rem; opacity: 0.3;"></i>
+                </div>
+            </div>
+        </div>
+    </section>
 
-function getSentimentBadgeClass(sentiment) {
-    switch(sentiment.toLowerCase()) {
-        case 'positive': return 'bg-success';
-        case 'negative': return 'bg-danger';
-        case 'neutral': return 'bg-warning';
-        default: return 'bg-secondary';
-    }
-}
+    <!-- News Content -->
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-lg-8">
+                <div id="newsContainer">
+                    <!-- Loading state -->
+                    <div class="loading-spinner" id="loadingNews">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div>Loading latest market news...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-filter me-2"></i>
+                            News Categories
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary btn-sm category-filter active" data-category="all">
+                                All News
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm category-filter" data-category="Economy">
+                                Economy
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm category-filter" data-category="Technology">
+                                Technology
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm category-filter" data-category="Banking">
+                                Banking
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm category-filter" data-category="Energy">
+                                Energy
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm category-filter" data-category="Healthcare">
+                                Healthcare
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Market Summary
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center">
+                            <div class="mb-3">
+                                <h6>NIFTY 50</h6>
+                                <div class="h4 text-success">19,674.25</div>
+                                <small class="text-success">+124.35 (+0.64%)</small>
+                            </div>
+                            <div class="mb-3">
+                                <h6>SENSEX</h6>
+                                <div class="h4 text-success">65,834.69</div>
+                                <small class="text-success">+389.75 (+0.60%)</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-// Smooth scrolling function
-window.scrollToSection = function(sectionId) {
-    const element = document.getElementById(sectionId);
-    if (element) {
-        element.scrollIntoView({ 
-            behavior: 'smooth',
-            block: 'start'
-        });
-    }
-};
+    <!-- News Article Modal -->
+    <div class="modal fade" id="articleModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="articleTitle">Article Title</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="articleContent">
+                        <div class="loading-spinner">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-// Show toast notifications
-function showToast(title, message, type = 'info') {
-    console.log(`Toast: ${title} - ${message}`);
+    <!-- AI Chat Assistant -->
+    <div class="ai-chat-container">
+        <div class="ai-chat-panel" id="aiChatPanel">
+            <div class="ai-chat-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-robot me-2"></i>AI Investment Assistant</span>
+                    <button class="btn btn-sm text-white" onclick="toggleAIChat()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="ai-chat-messages" id="aiChatMessages">
+                <div class="message ai">
+                    <strong>AI Assistant:</strong> Hello! I can help you understand market news, explain financial terms, and provide investment guidance. Ask me anything!
+                </div>
+            </div>
+            <div class="ai-chat-input">
+                <form id="aiChatForm">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="aiChatInput" placeholder="Ask me about the news...">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <button class="ai-chat-toggle" onclick="toggleAIChat()" title="AI Assistant">
+            <i class="fas fa-comments"></i>
+        </button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    const toastTitle = document.getElementById('toastTitle');
-    const toastMessage = document.getElementById('toastMessage');
-    const toast = document.getElementById('notificationToast');
-    
-    if (toastTitle && toastMessage && toast) {
-        toastTitle.textContent = title;
-        toastMessage.textContent = message;
-        
-        // Show toast using Bootstrap
-        if (typeof bootstrap !== 'undefined') {
-            const bsToast = new bootstrap.Toast(toast);
-            bsToast.show();
+    <script>
+        let newsData = [];
+        let filteredNews = [];
+
+        // Theme Management
+        function toggleTheme() {
+            const html = document.documentElement;
+            const themeIcon = document.getElementById('themeIcon');
+            
+            if (html.getAttribute('data-theme') === 'light') {
+                html.setAttribute('data-theme', 'dark');
+                themeIcon.className = 'fas fa-sun';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                html.setAttribute('data-theme', 'light');
+                themeIcon.className = 'fas fa-moon';
+                localStorage.setItem('theme', 'light');
+            }
         }
-    } else {
-        // Fallback to alert
-        alert(`${title}: ${message}`);
-    }
-}
 
-// Make functions globally available
-window.makePrediction = makePrediction;
-window.showToast = showToast;
-window.loadTopStocks = loadTopStocks;
-window.loadTechnicalChart = loadTechnicalChart;
-window.searchStock = searchStock;
+        // Load saved theme
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            const themeIcon = document.getElementById('themeIcon');
+            
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            themeIcon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            
+            // Load news
+            loadNews();
+            
+            // Setup category filters
+            setupCategoryFilters();
+        });
+
+        // Load news from API
+        async function loadNews() {
+            try {
+                const response = await fetch('/api/news');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                newsData = data.articles || [];
+                filteredNews = newsData;
+                displayNews(filteredNews);
+                
+                document.getElementById('loadingNews').style.display = 'none';
+                
+            } catch (error) {
+                console.error('Error loading news:', error);
+                document.getElementById('loadingNews').innerHTML = `
+                    <div class="text-center text-danger">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem;"></i>
+                        <p class="mt-2">Failed to load news. Please try again later.</p>
+                        <button class="btn btn-primary" onclick="loadNews()">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        // Display news articles
+        function displayNews(articles) {
+            const container = document.getElementById('newsContainer');
+            
+            if (!articles || articles.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-newspaper" style="font-size: 3rem;"></i>
+                        <p class="mt-2">No articles found for the selected category.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const newsHTML = articles.map(article => `
+                <div class="card news-card" onclick="showArticle(${article.id})">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-primary category-badge">${article.category}</span>
+                            <small class="news-meta">
+                                <i class="fas fa-user me-1"></i>${article.author || 'Unknown'} • 
+                                <i class="fas fa-calendar me-1"></i>${formatDate(article.published_at)}
+                            </small>
+                        </div>
+                        <h5 class="card-title">${escapeHtml(article.title)}</h5>
+                        <p class="news-summary">${escapeHtml(article.summary)}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">Click to read full article</small>
+                            <i class="fas fa-arrow-right"></i>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            container.innerHTML = newsHTML;
+        }
+
+        // Setup category filters
+        function setupCategoryFilters() {
+            const filterButtons = document.querySelectorAll('.category-filter');
+            
+            filterButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove active class from all buttons
+                    filterButtons.forEach(btn => btn.classList.remove('active'));
+                    // Add active class to clicked button
+                    this.classList.add('active');
+                    
+                    const category = this.dataset.category;
+                    
+                    if (category === 'all') {
+                        filteredNews = newsData;
+                    } else {
+                        filteredNews = newsData.filter(article => article.category === category);
+                    }
+                    
+                    displayNews(filteredNews);
+                });
+            });
+        }
+
+        // Show individual article
+        async function showArticle(articleId) {
+            try {
+                const modal = new bootstrap.Modal(document.getElementById('articleModal'));
+                const article = newsData.find(a => a.id === articleId);
+                
+                if (article) {
+                    document.getElementById('articleTitle').textContent = article.title;
+                    document.getElementById('articleContent').innerHTML = `
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-primary">${article.category}</span>
+                                <small class="text-muted">
+                                    By ${article.author || 'Unknown'} on ${formatDate(article.published_at)}
+                                </small>
+                            </div>
+                            ${article.image_url ? `<img src="${article.image_url}" class="img-fluid mb-3" alt="${escapeHtml(article.title)}" onerror="this.style.display='none'">` : ''}
+                        </div>
+                        <div class="article-content">
+                            ${formatArticleContent(article.content)}
+                        </div>
+                    `;
+                    
+                    modal.show();
+                } else {
+                    console.error('Article not found:', articleId);
+                }
+            } catch (error) {
+                console.error('Error showing article:', error);
+            }
+        }
+
+        // Format article content
+        function formatArticleContent(content) {
+            if (!content) return '<p>No content available.</p>';
+            
+            return content
+                .split('\n\n')
+                .filter(paragraph => paragraph.trim())
+                .map(paragraph => {
+                    const trimmed = paragraph.trim();
+                    
+                    // Check if it's a bullet list
+                    if (trimmed.startsWith('•') || trimmed.includes('\n•')) {
+                        const items = trimmed.split(/\n?•\s*/).filter(item => item.trim());
+                        return `<ul>${items.map(item => `<li>${escapeHtml(item.trim())}</li>`).join('')}</ul>`;
+                    }
+                    
+                    return `<p>${escapeHtml(trimmed)}</p>`;
+                })
+                .join('');
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            if (!dateString) return 'Unknown';
+            
+            try {
+                const date = new Date(dateString);
+                return date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+            } catch (error) {
+                return dateString;
+            }
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // AI Chat Functions
+        function toggleAIChat() {
+            const panel = document.getElementById('aiChatPanel');
+            if (panel.style.display === 'none' || panel.style.display === '') {
+                panel.style.display = 'flex';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        // AI Chat Form Handler
+        document.getElementById('aiChatForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const input = document.getElementById('aiChatInput');
+            const question = input.value.trim();
+            
+            if (!question) return;
+            
+            // Add user message
+            addChatMessage(question, 'user');
+            input.value = '';
+            
+            // Show typing indicator
+            const messagesContainer = document.getElementById('aiChatMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message ai typing';
+            typingDiv.innerHTML = '<em>AI is typing...</em>';
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            try {
+                const response = await fetch('/api/ai-assistant', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Remove typing indicator
+                typingDiv.remove();
+                
+                // Add AI response
+                addChatMessage(data.response || 'Sorry, I could not generate a response.', 'ai');
+                
+            } catch (error) {
+                typingDiv.remove();
+                addChatMessage('Sorry, I encountered an error. Please try again.', 'ai');
+                console.error('AI Chat error:', error);
+            }
+        });
+
+        function addChatMessage(message, sender) {
+            const messagesContainer = document.getElementById('aiChatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            if (sender === 'ai') {
+                // Convert markdown-like formatting to HTML
+                const formattedMessage = message
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br>');
+                messageDiv.innerHTML = formattedMessage;
+            } else {
+                messageDiv.textContent = message;
+            }
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Logout function
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', { 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    window.location.href = '/';
+                } else {
+                    console.error('Logout failed');
+                }
+            } catch (error) {
+                console.error('Logout failed:', error);
+                // Still redirect on error
+                window.location.href = '/';
+            }
+        }
+    </script>
+</body>
+</html>

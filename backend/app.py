@@ -9,15 +9,15 @@ import sqlite3
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
-#from app import app
-import os
 import logging
+import requests
+from time import sleep
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 app = Flask(__name__)
-#CORS(app)
+CORS(app)
 app.secret_key = 'your-secret-key-here-change-this-in-production'
 
 # Initialize database
@@ -122,10 +122,10 @@ SAMPLE_NEWS = [
 The Reserve Bank of India (RBI) has maintained its accommodative monetary policy stance, keeping interest rates stable to support economic growth. This has provided a favorable environment for both businesses and consumers.
 
 Key highlights of the GDP data:
-- Manufacturing sector: 9.2% growth
-- Services sector: 8.5% growth  
-- Agriculture sector: 3.1% growth
-- Government expenditure increased by 12.4%
+• Manufacturing sector: 9.2% growth
+• Services sector: 8.5% growth  
+• Agriculture sector: 3.1% growth
+• Government expenditure increased by 12.4%
 
 The strong economic performance has boosted investor confidence in Indian markets, with the Nifty 50 reaching new highs. Foreign institutional investors (FIIs) have been net buyers, investing over $15 billion in Indian equities this quarter.
 
@@ -146,11 +146,11 @@ Market analysts suggest that this robust GDP growth could lead to increased corp
 The AI revolution has created new opportunities for Indian IT companies, with demand for AI/ML services growing by over 40% year-on-year. Companies are investing heavily in AI capabilities and upskilling their workforce to meet this unprecedented demand.
 
 Key developments in the sector:
-- TCS announced a $2 billion AI partnership with a major US retailer
-- Infosys launched a new AI platform for enterprise automation
-- Wipro acquired an AI startup to strengthen its capabilities
-- Tech Mahindra reported 25% growth in AI-related revenue
-- HCL Technologies expanded its AI research centers
+• TCS announced a $2 billion AI partnership with a major US retailer
+• Infosys launched a new AI platform for enterprise automation
+• Wipro acquired an AI startup to strengthen its capabilities
+• Tech Mahindra reported 25% growth in AI-related revenue
+• HCL Technologies expanded its AI research centers
 
 The sector is also benefiting from increased outsourcing as global companies look to optimize costs while investing in digital transformation. Cloud adoption continues to accelerate, providing additional tailwinds for Indian IT services companies.
 
@@ -171,11 +171,11 @@ Analysts remain bullish on the sector, with most upgrading their target prices f
 HDFC Bank, ICICI Bank, and Axis Bank have all reported strong quarterly results, with net interest margins remaining stable despite competitive pressures. The reduction in non-performing assets (NPAs) has freed up capital for fresh lending activities.
 
 Banking sector highlights:
-- Credit growth: 14.2% YoY across all segments
-- Gross NPAs declined to 3.2% from 4.1% last year
-- Net interest margins averaged 3.8% across major banks
-- Return on assets improved to 1.1% from 0.9%
-- Provision coverage ratio increased to 85%
+• Credit growth: 14.2% YoY across all segments
+• Gross NPAs declined to 3.2% from 4.1% last year
+• Net interest margins averaged 3.8% across major banks
+• Return on assets improved to 1.1% from 0.9%
+• Provision coverage ratio increased to 85%
 
 The RBI's accommodative policy stance has supported lending activity, while improved economic conditions have reduced credit risks significantly. Corporate lending has picked up substantially, with infrastructure and manufacturing sectors driving demand.
 
@@ -196,11 +196,11 @@ The banking sector's strong performance is expected to continue, supported by ec
 Solar and wind energy projects dominated the investment landscape, with several large-scale installations coming online. The government's ambitious target of 500 GW renewable capacity by 2030 is driving both domestic and international investments.
 
 Investment highlights:
-- Solar projects: $7.2 billion in new commitments
-- Wind energy: $3.1 billion in funding
-- Energy storage: $1.2 billion investment
-- Green hydrogen: $500 million initial funding
-- International investors contributed 60% of total funding
+• Solar projects: $7.2 billion in new commitments
+• Wind energy: $3.1 billion in funding
+• Energy storage: $1.2 billion investment
+• Green hydrogen: $500 million initial funding
+• International investors contributed 60% of total funding
 
 Major global funds and sovereign wealth funds are increasingly viewing India as a preferred destination for clean energy investments. The combination of abundant renewable resources, supportive policies, and growing energy demand makes India an attractive market.
 
@@ -221,11 +221,11 @@ Companies like Adani Green Energy, ReNew Power, and Tata Power Renewable Energy 
 Major pharmaceutical companies like Dr. Reddy's, Cipla, and Sun Pharma have expanded their global footprint with new product approvals and strategic partnerships. The US market remains the largest contributor to export revenues.
 
 Pharma sector achievements:
-- Export revenue growth: 18% year-on-year
-- New drug approvals: 150+ in regulated markets
-- Biosimilar launches: 25 major products
-- API exports: $8.2 billion contribution
-- Employment generation: 200,000+ new jobs
+• Export revenue growth: 18% year-on-year
+• New drug approvals: 150+ in regulated markets
+• Biosimilar launches: 25 major products
+• API exports: $8.2 billion contribution
+• Employment generation: 200,000+ new jobs
 
 The sector is also making significant strides in research and development, with increased investment in innovative drug discovery and development. Indian companies are increasingly focusing on complex generics and biosimilars to maintain competitive advantages.
 
@@ -238,6 +238,121 @@ Government initiatives like the Production Linked Incentive (PLI) scheme are fur
         'image_url': 'https://via.placeholder.com/400x200/17a2b8/ffffff?text=Pharma+Exports'
     }
 ]
+
+def get_real_stock_price(symbol, max_retries=3):
+    """Get real stock price with multiple fallback methods"""
+    
+    # Try Yahoo Finance first
+    for attempt in range(max_retries):
+        try:
+            ticker = yf.Ticker(f"{symbol}.NS")
+            hist = ticker.history(period="5d")
+            
+            if not hist.empty:
+                current_price = float(hist['Close'].iloc[-1])
+                if current_price > 0:
+                    return current_price, True
+                    
+        except Exception as e:
+            logger.warning(f"YFinance attempt {attempt + 1} failed for {symbol}: {e}")
+            if attempt < max_retries - 1:
+                sleep(1)  # Wait before retry
+    
+    # Try NSE India website as backup
+    try:
+        nse_url = f"https://www.nseindia.com/api/quote-equity?symbol={symbol}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+        }
+        
+        response = requests.get(nse_url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            price = data.get('priceInfo', {}).get('lastPrice')
+            if price:
+                return float(price), True
+                
+    except Exception as e:
+        logger.warning(f"NSE API failed for {symbol}: {e}")
+    
+    # Fallback to realistic simulation
+    logger.warning(f"All real data sources failed for {symbol}, using fallback")
+    return generate_realistic_price(symbol), False
+
+def generate_realistic_price(symbol):
+    """Generate realistic stock prices based on actual ranges"""
+    price_ranges = {
+        'TCS': (3000, 4000),
+        'INFY': (1400, 1800),
+        'HDFCBANK': (1400, 1700),
+        'RELIANCE': (2200, 2800),
+        'ICICIBANK': (900, 1200),
+        'SBIN': (600, 800),
+        'ITC': (400, 500),
+        'WIPRO': (400, 600),
+        'LT': (2800, 3500),
+        'BHARTIARTL': (800, 1100),
+        'ASIANPAINT': (3000, 3800),
+        'MARUTI': (9000, 12000),
+        'KOTAKBANK': (1600, 2000),
+        'AXISBANK': (1000, 1300),
+        'NESTLEIND': (20000, 25000),
+        'HINDUNILVR': (2300, 2800),
+        'BAJFINANCE': (6000, 8000),
+        'DMART': (3500, 4500),
+        'ADANIPORTS': (700, 1000),
+        'NTPC': (250, 350),
+        'ONGC': (180, 250),
+        'POWERGRID': (200, 280),
+        'COALINDIA': (350, 450),
+        'BPCL': (400, 550),
+        'IOC': (110, 150),
+        'TATAMOTORS': (700, 1000),
+        'TATASTEEL': (110, 160),
+        'JSWSTEEL': (700, 900),
+        'HINDALCO': (400, 550),
+        'VEDL': (350, 500),
+        'ADANIENT': (2000, 3000),
+        'SAIL': (80, 120),
+        'YESBANK': (15, 25),
+        'SUZLON': (40, 60),
+        'INDUSINDBK': (1200, 1600),
+        'BANKBARODA': (180, 240),
+        'PNB': (80, 120),
+        'CANBK': (350, 450),
+        'IDBI': (50, 80),
+        'BRITANNIA': (4500, 5500),
+        'PIDILITIND': (2500, 3200),
+        'COLPAL': (1600, 2000),
+        'DABUR': (550, 650),
+        'GRASIM': (1800, 2300),
+        'ZEEL': (200, 350)
+    }
+    
+    price_range = price_ranges.get(symbol, (100, 1000))
+    base_price = random.uniform(price_range[0], price_range[1])
+    
+    # Add some daily volatility
+    daily_change = random.uniform(-0.03, 0.03)
+    return round(base_price * (1 + daily_change), 2)
+
+def get_ohlc_data(symbol, period="3mo"):
+    """Get OHLC data for candlestick charts"""
+    try:
+        ticker = yf.Ticker(f"{symbol}.NS")
+        hist = ticker.history(period=period)
+        
+        if not hist.empty:
+            return hist
+        else:
+            return generate_sample_ohlc_data(symbol, period)
+    except Exception as e:
+        logger.error(f"Error getting OHLC data for {symbol}: {e}")
+        return generate_sample_ohlc_data(symbol, period)
 
 def get_all_stocks():
     """Get all stocks from all categories"""
@@ -268,10 +383,6 @@ def search_stock_by_input(user_input):
                 return stock
     
     return None
-# Add to your existing app.py only if missing:
-
-# Better logging setup
-
 
 # Enhanced error handling in routes
 @app.errorhandler(500)
@@ -318,7 +429,6 @@ def search_stock():
                 'sector': stock['sector']
             })
         else:
-            # Try to check if it might be a valid symbol anyway
             return jsonify({
                 'found': False,
                 'suggested_symbol': user_input.upper(),
@@ -441,32 +551,30 @@ def get_portfolio():
         for row in c.fetchall():
             symbol, shares, purchase_price, purchase_date, portfolio_id = row
             
-            # Get current price and historical data
+            # Get real current price
+            current_price, is_real = get_real_stock_price(symbol)
+            
+            # Get historical data for highs and lows since purchase
             try:
-                ticker = yf.Ticker(f"{symbol}.NS")
-                hist = ticker.history(period="1d")
-                current_price = float(hist['Close'].iloc[-1]) if not hist.empty else purchase_price
-                
-                # Get historical data for highs and lows since purchase
                 purchase_dt = datetime.strptime(purchase_date, '%Y-%m-%d')
                 days_since_purchase = (datetime.now() - purchase_dt).days
-                period = f"{min(days_since_purchase + 30, 365)}d"
                 
+                ticker = yf.Ticker(f"{symbol}.NS")
+                period = f"{min(days_since_purchase + 30, 365)}d"
                 hist_since_purchase = ticker.history(period=period)
+                
                 if not hist_since_purchase.empty:
-                    # Filter data from purchase date onwards
                     hist_since_purchase = hist_since_purchase[hist_since_purchase.index >= purchase_dt]
                     highest_price = float(hist_since_purchase['High'].max()) if len(hist_since_purchase) > 0 else current_price
                     lowest_price = float(hist_since_purchase['Low'].min()) if len(hist_since_purchase) > 0 else current_price
                 else:
-                    highest_price = current_price
-                    lowest_price = current_price
+                    highest_price = current_price * 1.2
+                    lowest_price = current_price * 0.8
                 
             except Exception as e:
-                print(f"Error fetching data for {symbol}: {e}")
-                current_price = purchase_price * random.uniform(0.9, 1.1)
-                highest_price = current_price * random.uniform(1.1, 1.3)
-                lowest_price = current_price * random.uniform(0.7, 0.9)
+                print(f"Error fetching historical data for {symbol}: {e}")
+                highest_price = current_price * 1.2
+                lowest_price = current_price * 0.8
             
             invested_amount = shares * purchase_price
             current_value = shares * current_price
@@ -495,7 +603,8 @@ def get_portfolio():
                 'highest_price': round(highest_price, 2),
                 'lowest_price': round(lowest_price, 2),
                 'days_held': days_since_purchase,
-                'recommendation': portfolio_recommendation
+                'recommendation': portfolio_recommendation,
+                'is_real_price': is_real
             })
         
         conn.close()
@@ -552,38 +661,32 @@ def predict_stock():
         # Check for existing calibration
         calibration_factor = get_calibration_factor(symbol)
         
-        # Try to fetch real data from Yahoo Finance
+        # Get real current price
+        current_price, is_real = get_real_stock_price(symbol)
+        
+        # Get stock info
         try:
             ticker = yf.Ticker(f"{symbol}.NS")
-            hist = ticker.history(period="3mo")
             info = ticker.info
-            
-            if hist.empty:
-                current_price = random.uniform(1000, 5000)
-                predicted_price = current_price * random.uniform(0.95, 1.05) * calibration_factor
-                stock_name = f"{symbol} Ltd"
-                historical_data = generate_sample_historical_data(current_price)
-            else:
-                current_price = float(hist['Close'].iloc[-1])
-                # Apply calibration to prediction
-                base_prediction = current_price * random.uniform(0.98, 1.02)
-                predicted_price = base_prediction * calibration_factor
-                stock_name = info.get('longName', f"{symbol} Ltd")
-                
-                # Convert historical data for chart
-                historical_data = []
-                for date, row in hist.tail(30).iterrows():
-                    historical_data.append({
-                        'date': date.strftime('%Y-%m-%d'),
-                        'price': round(float(row['Close']), 2)
-                    })
-                
-        except Exception as e:
-            print(f"Error fetching data for {symbol}: {e}")
-            current_price = random.uniform(1000, 5000)
-            predicted_price = current_price * random.uniform(0.95, 1.05) * calibration_factor
+            stock_name = info.get('longName', f"{symbol} Ltd")
+        except:
             stock_name = f"{symbol} Ltd"
+        
+        # Generate historical data for chart
+        historical_data = []
+        try:
+            hist = get_ohlc_data(symbol, "1mo")
+            for date, row in hist.tail(30).iterrows():
+                historical_data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'price': round(float(row['Close']), 2)
+                })
+        except:
             historical_data = generate_sample_historical_data(current_price)
+        
+        # Apply calibration to prediction
+        base_prediction = current_price * random.uniform(0.98, 1.02)
+        predicted_price = base_prediction * calibration_factor
         
         # Generate prediction data for chart
         prediction_data = generate_prediction_data(current_price, predicted_price, days_ahead)
@@ -623,7 +726,8 @@ def predict_stock():
             'historical_data': historical_data,
             'prediction_data': prediction_data,
             'ai_analysis': ai_analysis,
-            'sentiment_analysis': sentiment_analysis
+            'sentiment_analysis': sentiment_analysis,
+            'is_real_price': is_real
         })
         
     except Exception as e:
@@ -691,11 +795,8 @@ def get_technical_chart(symbol):
         chart_type = request.args.get('type', 'candlestick')
         period = request.args.get('period', '3mo')
         
-        ticker = yf.Ticker(f"{symbol}.NS")
-        hist = ticker.history(period=period)
-        
-        if hist.empty:
-            hist = generate_sample_ohlc_data(symbol, period)
+        # Get OHLC data
+        hist = get_ohlc_data(symbol, period)
         
         # Process data based on chart type
         if chart_type == 'candlestick':
@@ -711,12 +812,16 @@ def get_technical_chart(symbol):
         else:
             chart_data = process_candlestick_data(hist)
         
+        # Calculate technical indicators
         indicators = calculate_technical_indicators(hist)
+        
+        # Analyze patterns
         patterns = analyze_chart_patterns(hist, chart_type)
         
         return jsonify({
             'symbol': symbol,
             'chart_type': chart_type,
+            'period': period,
             'data': chart_data,
             'indicators': indicators,
             'patterns': patterns,
@@ -731,23 +836,36 @@ def get_technical_chart(symbol):
 def get_top_stocks():
     try:
         category = request.args.get('category', 'safe')
+        count = int(request.args.get('count', 5))
+        time_period = int(request.args.get('time_period', 5))
+        
+        # Validate parameters
+        count = max(1, min(count, 10))  # Ensure count is between 1-10
+        time_period = max(1, min(time_period, 30))  # Ensure time_period is between 1-30
+        
         stocks = COMPREHENSIVE_STOCKS.get(category, COMPREHENSIVE_STOCKS['safe'])
         
         enhanced_stocks = []
-        for stock in stocks[:15]:  # Increased from 5 to 15 stocks
+        for stock in stocks[:count]:
             try:
-                ticker = yf.Ticker(f"{stock['symbol']}.NS")
-                hist = ticker.history(period="5d")
+                # Get real current price
+                current_price, is_real = get_real_stock_price(stock['symbol'])
                 
-                if not hist.empty:
-                    current_price = float(hist['Close'].iloc[-1])
-                    prev_price = float(hist['Close'].iloc[0])
-                    price_change = ((current_price - prev_price) / prev_price) * 100
-                else:
-                    current_price = random.uniform(500, 3000)
+                # Calculate price change for the specified time period
+                try:
+                    ticker = yf.Ticker(f"{stock['symbol']}.NS")
+                    hist = ticker.history(period=f"{time_period + 5}d")
+                    if not hist.empty and len(hist) > time_period:
+                        past_price = float(hist['Close'].iloc[-(time_period + 1)])
+                        price_change = ((current_price - past_price) / past_price) * 100
+                    else:
+                        price_change = random.uniform(-5, 5)
+                except:
                     price_change = random.uniform(-5, 5)
                 
+                # Generate predicted price for the time period
                 predicted_price = current_price * random.uniform(1.02, 1.08)
+                predicted_change = ((predicted_price - current_price) / current_price) * 100
                 
                 enhanced_stocks.append({
                     'symbol': stock['symbol'],
@@ -755,16 +873,20 @@ def get_top_stocks():
                     'sector': stock['sector'],
                     'current_price': round(current_price, 2),
                     'predicted_price': round(predicted_price, 2),
+                    'predicted_change': round(predicted_change, 2),
                     'price_change': round(price_change, 2),
                     'prediction_confidence': random.randint(75, 90),
-                    'chart_data': generate_sample_chart_data(current_price)
+                    'chart_data': generate_sample_chart_data(current_price),
+                    'is_real_price': is_real,
+                    'time_period': time_period
                 })
                 
             except Exception as e:
                 print(f"Error processing {stock['symbol']}: {e}")
-                current_price = random.uniform(500, 3000)
+                current_price = generate_realistic_price(stock['symbol'])
                 price_change = random.uniform(-5, 5)
                 predicted_price = current_price * random.uniform(1.02, 1.08)
+                predicted_change = ((predicted_price - current_price) / current_price) * 100
                 
                 enhanced_stocks.append({
                     'symbol': stock['symbol'],
@@ -772,13 +894,18 @@ def get_top_stocks():
                     'sector': stock['sector'],
                     'current_price': round(current_price, 2),
                     'predicted_price': round(predicted_price, 2),
+                    'predicted_change': round(predicted_change, 2),
                     'price_change': round(price_change, 2),
                     'prediction_confidence': random.randint(75, 90),
-                    'chart_data': generate_sample_chart_data(current_price)
+                    'chart_data': generate_sample_chart_data(current_price),
+                    'is_real_price': False,
+                    'time_period': time_period
                 })
         
         return jsonify({
             'category': category,
+            'count': count,
+            'time_period': time_period,
             'stocks': enhanced_stocks
         })
         
@@ -806,15 +933,14 @@ def get_calibration_factor(symbol):
 def perform_calibration(symbol, days_ahead):
     """Perform calibration for prediction accuracy"""
     try:
-        ticker = yf.Ticker(f"{symbol}.NS")
-        hist = ticker.history(period="6mo")  # Get more data for better calibration
+        hist = get_ohlc_data(symbol, "6mo")
         
-        if hist.empty:
+        if hist.empty or len(hist) < 10:
             return 75.0  # Default accuracy
         
         # Simulate backtesting over multiple periods
         accuracies = []
-        test_periods = min(10, len(hist) // (days_ahead + 1))  # Test up to 10 periods
+        test_periods = min(10, len(hist) // (days_ahead + 1))
         
         for i in range(test_periods):
             start_idx = i * (days_ahead + 1)
@@ -828,9 +954,9 @@ def perform_calibration(symbol, days_ahead):
             
             # Test different prediction strategies
             strategies = [
-                base_price * 1.0,  # No change
-                base_price * random.uniform(0.98, 1.02),  # Random walk
-                base_price * (1 + (random.uniform(-0.02, 0.02) * days_ahead/5))  # Trend-based
+                base_price * 1.0,
+                base_price * random.uniform(0.98, 1.02),
+                base_price * (1 + (random.uniform(-0.02, 0.02) * days_ahead/5))
             ]
             
             best_accuracy = 0
@@ -838,15 +964,15 @@ def perform_calibration(symbol, days_ahead):
                 accuracy = 100 - abs((predicted_price - actual_price) / actual_price) * 100
                 best_accuracy = max(best_accuracy, accuracy)
             
-            accuracies.append(max(best_accuracy, 50))  # Minimum 50% accuracy
+            accuracies.append(max(best_accuracy, 50))
         
         if not accuracies:
             return 75.0
             
         avg_accuracy = sum(accuracies) / len(accuracies)
         
-        # Store calibration with improved factor
-        improvement_factor = 1.0 + (avg_accuracy - 75) / 1000  # Slight adjustment based on accuracy
+        # Store calibration
+        improvement_factor = 1.0 + (avg_accuracy - 75) / 1000
         calibration_data = {
             'factor': improvement_factor,
             'accuracy': avg_accuracy,
@@ -866,6 +992,187 @@ def perform_calibration(symbol, days_ahead):
         print(f"Calibration error: {e}")
         return 75.0
 
+def process_candlestick_data(hist):
+    """Process data for candlestick chart"""
+    data = []
+    for date, row in hist.iterrows():
+        data.append({
+            'date': date.strftime('%Y-%m-%d'),
+            'open': round(float(row['Open']), 2),
+            'high': round(float(row['High']), 2),
+            'low': round(float(row['Low']), 2),
+            'close': round(float(row['Close']), 2),
+            'volume': int(row['Volume'])
+        })
+    return data
+
+def process_renko_data(hist):
+    """Process data for Renko chart"""
+    if len(hist) == 0:
+        return []
+        
+    brick_size = hist['Close'].std() * 0.5
+    data = []
+    current_price = float(hist['Close'].iloc[0])
+    direction = 1
+    
+    for date, row in hist.iterrows():
+        close_price = float(row['Close'])
+        price_diff = close_price - current_price
+        bricks_needed = int(abs(price_diff) / brick_size)
+        
+        if bricks_needed > 0:
+            new_direction = 1 if price_diff > 0 else -1
+            
+            for i in range(bricks_needed):
+                brick_open = current_price
+                brick_close = current_price + (brick_size * new_direction)
+                
+                data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'open': round(brick_open, 2),
+                    'close': round(brick_close, 2),
+                    'direction': new_direction,
+                    'brick_size': round(brick_size, 2)
+                })
+                
+                current_price = brick_close
+                direction = new_direction
+    
+    return data
+
+def process_kagi_data(hist):
+    """Process data for Kagi chart"""
+    if len(hist) == 0:
+        return []
+        
+    reversal_amount = hist['Close'].std() * 0.3
+    data = []
+    current_price = float(hist['Close'].iloc[0])
+    direction = 1
+    
+    for date, row in hist.iterrows():
+        close_price = float(row['Close'])
+        
+        if direction == 1 and (current_price - close_price) > reversal_amount:
+            direction = -1
+            data.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'price': round(close_price, 2),
+                'direction': direction,
+                'reversal': True
+            })
+        elif direction == -1 and (close_price - current_price) > reversal_amount:
+            direction = 1
+            data.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'price': round(close_price, 2),
+                'direction': direction,
+                'reversal': True
+            })
+        else:
+            data.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'price': round(close_price, 2),
+                'direction': direction,
+                'reversal': False
+            })
+        
+        current_price = close_price
+    
+    return data
+
+def process_point_figure_data(hist):
+    """Process data for Point & Figure chart"""
+    if len(hist) == 0:
+        return []
+        
+    box_size = hist['Close'].std() * 0.2
+    data = []
+    current_price = float(hist['Close'].iloc[0])
+    column_type = 'X'
+    
+    for date, row in hist.iterrows():
+        high_price = float(row['High'])
+        low_price = float(row['Low'])
+        
+        if column_type == 'X':
+            x_count = int((high_price - current_price) / box_size)
+            o_count = int((current_price - low_price) / box_size)
+            
+            if x_count > 0:
+                data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'type': 'X',
+                    'count': x_count,
+                    'price': round(current_price + (x_count * box_size), 2)
+                })
+                current_price += x_count * box_size
+            elif o_count >= 3:
+                column_type = 'O'
+                data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'type': 'O',
+                    'count': o_count,
+                    'price': round(current_price - (o_count * box_size), 2)
+                })
+                current_price -= o_count * box_size
+        else:
+            o_count = int((current_price - low_price) / box_size)
+            x_count = int((high_price - current_price) / box_size)
+            
+            if o_count > 0:
+                data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'type': 'O',
+                    'count': o_count,
+                    'price': round(current_price - (o_count * box_size), 2)
+                })
+                current_price -= o_count * box_size
+            elif x_count >= 3:
+                column_type = 'X'
+                data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'type': 'X',
+                    'count': x_count,
+                    'price': round(current_price + (x_count * box_size), 2)
+                })
+                current_price += x_count * box_size
+    
+    return data
+
+def process_breakout_data(hist):
+    """Process data for Breakout chart"""
+    if len(hist) < 20:
+        return []
+        
+    window = 20
+    data = []
+    
+    for i in range(window, len(hist)):
+        current_date = hist.index[i]
+        current_data = hist.iloc[i-window:i]
+        
+        resistance = current_data['High'].max()
+        support = current_data['Low'].min()
+        current_price = float(hist.iloc[i]['Close'])
+        
+        breakout_type = None
+        if current_price > resistance:
+            breakout_type = 'resistance_break'
+        elif current_price < support:
+            breakout_type = 'support_break'
+        
+        data.append({
+            'date': current_date.strftime('%Y-%m-%d'),
+            'price': round(current_price, 2),
+            'resistance': round(resistance, 2),
+            'support': round(support, 2),
+            'breakout_type': breakout_type
+        })
+    
+    return data
+
 def generate_portfolio_recommendation(shares, profit_loss_pct, current_price, purchase_price, days_held):
     """Generate portfolio-specific recommendations"""
     recommendation = {
@@ -875,7 +1182,6 @@ def generate_portfolio_recommendation(shares, profit_loss_pct, current_price, pu
         'suggested_actions': []
     }
     
-    # Base recommendation on profit/loss and holding period
     if profit_loss_pct > 20:
         recommendation['action'] = 'PARTIAL SELL'
         recommendation['strength'] = 'High'
@@ -928,7 +1234,6 @@ def generate_portfolio_recommendation(shares, profit_loss_pct, current_price, pu
             'reason': 'Maintain current position'
         })
     
-    # Add holding period context
     if days_held < 30:
         recommendation['reasoning'].append('Short holding period - early to make major decisions')
     elif days_held > 365:
@@ -977,7 +1282,6 @@ def generate_enhanced_recommendation(price_change_pct, confidence, days_ahead):
     
     recommendation['reasoning'].append(f'Prediction confidence: {confidence}%')
     
-    # Add confidence-based reasoning
     if confidence > 90:
         recommendation['reasoning'].append('Very high confidence in prediction model')
     elif confidence > 80:
@@ -990,10 +1294,9 @@ def generate_enhanced_recommendation(price_change_pct, confidence, days_ahead):
     return recommendation
 
 def generate_ai_response(question):
-    """Generate AI assistant response with website navigation help"""
+    """Generate AI assistant response"""
     question_lower = question.lower()
     
-    # Website navigation help
     if any(word in question_lower for word in ['navigate', 'use', 'website', 'how to', 'help']):
         return """## How to Use Stock Market Predictor
 
@@ -1017,7 +1320,14 @@ def generate_ai_response(question):
 **Technical Analysis:**
 - View different chart types (Candlestick, Renko, etc.)
 - Analyze technical indicators (RSI, MACD, etc.)
+- Use zoom and pan features on charts
 - Click the "i" icons for explanations of terms
+
+**Top Performing Stocks:**
+- Choose stock category (Safe, Volatile, High Risk/Reward)
+- Select number of stocks to display (1-10)
+- Choose time period for performance analysis (1-30 days)
+- Quick predict button for instant analysis
 
 **AI Assistant:**
 - Ask me anything about investing, stocks, or technical terms
@@ -1086,279 +1396,6 @@ Feel free to ask specific questions about any feature!"""
 - STCG: Short-term gains (<1 year) taxed at 15%
 - Dividend income taxed as per income tax slab"""
     
-    elif any(word in question_lower for word in ['rsi', 'relative strength index']):
-        return """## RSI (Relative Strength Index) - Complete Guide
-
-**What is RSI?**
-RSI is a momentum oscillator that measures the speed and magnitude of price changes to identify overbought/oversold conditions.
-
-**Key RSI Levels:**
-- **Above 70**: Overbought zone (potential sell signal)
-- **Below 30**: Oversold zone (potential buy signal)  
-- **50**: Neutral/equilibrium level
-- **Above 80**: Extremely overbought
-- **Below 20**: Extremely oversold
-
-**How to Use RSI:**
-1. **Basic Strategy**: Buy when RSI crosses above 30, sell when it crosses below 70
-2. **Divergence**: Look for price making new highs while RSI makes lower highs (bearish divergence)
-3. **Trend Confirmation**: In uptrends, RSI tends to stay above 40; in downtrends, below 60
-
-**RSI Calculation:**
-RSI = 100 - (100 / (1 + RS))
-Where RS = Average Gain / Average Loss over 14 periods
-
-**Best Practices:**
-- Use with other indicators for confirmation
-- Works best in ranging/sideways markets
-- Can give false signals in strong trending markets
-- Adjust period (14 is standard) based on your trading timeframe
-
-**Pro Tips:**
-- RSI above 50 generally indicates bullish momentum
-- Look for RSI to break key levels (30, 50, 70) for trend confirmation
-- In strong trends, RSI can remain overbought/oversold for extended periods"""
-    
-    elif any(word in question_lower for word in ['macd']):
-        return """## MACD (Moving Average Convergence Divergence) - Expert Guide
-
-**MACD Components:**
-1. **MACD Line**: 12-day EMA minus 26-day EMA
-2. **Signal Line**: 9-day EMA of the MACD line
-3. **Histogram**: MACD line minus Signal line
-4. **Zero Line**: Where MACD line crosses zero
-
-**Trading Signals:**
-- **Bullish Crossover**: MACD line crosses above Signal line (buy signal)
-- **Bearish Crossover**: MACD line crosses below Signal line (sell signal)
-- **Zero Line Cross**: MACD crossing above/below zero indicates trend change
-- **Divergence**: Price and MACD moving in opposite directions
-
-**MACD Histogram:**
-- **Positive**: MACD is above Signal line (bullish momentum)
-- **Negative**: MACD is below Signal line (bearish momentum)
-- **Expanding**: Momentum is strengthening
-- **Contracting**: Momentum is weakening
-
-**Advanced MACD Strategies:**
-1. **Trend Following**: Use zero line crosses for trend direction
-2. **Momentum Trading**: Trade histogram expansions/contractions  
-3. **Divergence Trading**: Look for price-MACD divergences for reversal signals
-
-**Best Timeframes:**
-- Daily charts: Most reliable for swing trading
-- Weekly charts: Great for long-term trend analysis
-- Intraday: Use shorter periods (5,13,9) for day trading
-
-**Limitations:**
-- Lagging indicator (based on moving averages)
-- Can give false signals in choppy markets
-- Works best in trending markets"""
-    
-    elif any(word in question_lower for word in ['bollinger bands', 'bollinger']):
-        return """## Bollinger Bands - Complete Trading Guide
-
-**Bollinger Band Components:**
-- **Middle Band**: 20-period Simple Moving Average (SMA)
-- **Upper Band**: Middle Band + (2 × Standard Deviation)  
-- **Lower Band**: Middle Band - (2 × Standard Deviation)
-
-**Key Concepts:**
-- **Band Width**: Distance between upper and lower bands (volatility measure)
-- **%B Indicator**: Shows where price is relative to the bands
-- **Squeeze**: When bands contract (low volatility, potential breakout coming)
-- **Expansion**: When bands widen (high volatility period)
-
-**Trading Strategies:**
-1. **Mean Reversion**: Buy at lower band, sell at upper band (ranging markets)
-2. **Breakout Trading**: Trade in direction of band breakout with volume
-3. **Squeeze Trading**: Enter position when bands expand after squeeze
-4. **Walking the Bands**: In strong trends, price often "walks" along one band
-
-**%B Interpretation:**
-- **%B > 1**: Price above upper band (very overbought)
-- **%B = 0.5**: Price at middle band (neutral)
-- **%B < 0**: Price below lower band (very oversold)
-
-**Pro Trading Tips:**
-- About 90% of price action occurs within the bands
-- Band touches are signals, not automatic trades
-- Combine with RSI for better timing: RSI >70 at upper band = strong sell signal
-- In trending markets, expect price to walk along outer band
-- Squeezes often precede significant moves (20%+ of the time)
-
-**Best Markets:**
-- Works well in ranging/consolidating markets
-- Less reliable in strong trending markets
-- Excellent for forex and commodity trading"""
-    
-    elif any(word in question_lower for word in ['support', 'resistance']):
-        return """## Support and Resistance - Foundation of Technical Analysis
-
-**Support Level:**
-- Price level where buying interest emerges
-- Acts as a "floor" that prevents further decline
-- Forms when demand exceeds supply
-- Often at previous lows, moving averages, or psychological levels
-
-**Resistance Level:**
-- Price level where selling pressure increases
-- Acts as a "ceiling" that prevents further rise  
-- Forms when supply exceeds demand
-- Often at previous highs, moving averages, or round numbers
-
-**Key Principles:**
-1. **Role Reversal**: Broken support becomes resistance, broken resistance becomes support
-2. **Strength**: More touches = stronger level (but also more likely to break)
-3. **Volume Confirmation**: High volume at levels confirms their importance
-4. **Time Frame**: Longer time frame levels are more significant
-
-**Types of Support/Resistance:**
-- **Horizontal**: Static price levels from previous highs/lows
-- **Trendlines**: Dynamic levels along trend direction
-- **Moving Averages**: 50-day, 200-day often act as support/resistance
-- **Psychological**: Round numbers (₹100, ₹500, ₹1000)
-- **Fibonacci**: Retracement levels (38.2%, 50%, 61.8%)
-
-**Trading Strategies:**
-1. **Bounce Play**: Buy at support, sell at resistance
-2. **Breakout Trading**: Trade in direction of level break with volume
-3. **False Breakout**: Fade breakouts that quickly reverse
-4. **Multiple Timeframe**: Confirm levels on different time frames
-
-**Identification Tips:**
-- Look for at least 2-3 touches to confirm level
-- Connect swing highs for resistance, swing lows for support
-- Watch for volume spikes at key levels
-- Round numbers often provide psychological support/resistance
-
-**Pro Strategies:**
-- Place stops just beyond key levels (₹2-5 for most Indian stocks)
-- Target next major level for profit booking
-- Use multiple timeframes: daily for major levels, hourly for entry/exit"""
-    
-    elif any(word in question_lower for word in ['technical', 'indicators', 'analysis']):
-        return """## Technical Indicators - Complete Reference Guide
-
-**Trend Indicators:**
-- **Moving Averages (SMA/EMA)**: Smooth price data to identify trend direction
-- **MACD**: Trend following momentum indicator
-- **ADX**: Measures trend strength (>25 = strong trend)
-- **Parabolic SAR**: Provides entry/exit signals in trending markets
-
-**Momentum Indicators:**
-- **RSI**: Identifies overbought/oversold conditions (0-100 scale)
-- **Stochastic**: Similar to RSI but more sensitive (%K and %D lines)  
-- **Williams %R**: Momentum oscillator (opposite scale to Stochastic)
-- **CCI**: Commodity Channel Index for cyclical turning points
-
-**Volatility Indicators:**
-- **Bollinger Bands**: Price channels based on standard deviation
-- **ATR**: Average True Range measures volatility
-- **Volatility Index**: Shows market fear/greed levels
-
-**Volume Indicators:**
-- **Volume**: Confirms price movements
-- **OBV**: On Balance Volume shows money flow
-- **A/D Line**: Accumulation/Distribution line
-- **VWAP**: Volume Weighted Average Price
-
-**How to Combine Indicators:**
-1. **Trend + Momentum**: Use moving averages with RSI/MACD
-2. **Multiple Timeframes**: Daily for trend, hourly for entry
-3. **Confirmation**: Wait for 2-3 indicators to align
-4. **Avoid Over-analysis**: Maximum 3-4 indicators at once
-
-**Best Indicator Combinations:**
-- **Swing Trading**: 20/50 EMA + RSI + Volume
-- **Day Trading**: 5/15 EMA + Stochastic + VWAP
-- **Long-term Investing**: 50/200 SMA + MACD + Weekly charts
-
-**Common Mistakes:**
-- Using too many indicators (analysis paralysis)
-- Ignoring price action for indicators
-- Not adjusting for different market conditions
-- Following indicators blindly without context"""
-    
-    elif any(word in question_lower for word in ['news', 'articles', 'market news']):
-        return """## Using Market News for Investment Decisions
-
-**Our News Section Features:**
-- Top 10 daily market news articles
-- Full article content with expert analysis
-- Categories: Economy, Banking, Technology, Healthcare, Energy
-- Author credentials and publication dates
-- Related stock impact analysis
-
-**How to Use News for Trading:**
-1. **Immediate Impact**: Breaking news can cause sudden price movements
-2. **Sector Rotation**: Industry news affects entire sectors
-3. **Long-term Trends**: Policy changes create long-term opportunities
-4. **Earnings Context**: Company results vs market expectations
-
-**News Analysis Framework:**
-- **Headline Impact**: How will this affect stock prices?
-- **Timeline**: Short-term reaction vs long-term implications  
-- **Scope**: Company-specific vs sector-wide vs market-wide
-- **Credibility**: Source reliability and author expertise
-
-**Trading on News:**
-- **Pre-market**: React to overnight global news
-- **Earnings Season**: Focus on guidance and management commentary
-- **Policy Announcements**: RBI, Budget, sector-specific policies
-- **Global Events**: How international news affects Indian markets
-
-**Best Practices:**
-- Read full articles, not just headlines
-- Cross-reference multiple sources
-- Understand market sentiment vs fundamentals
-- Don't trade on rumors or unconfirmed reports
-- Consider opposite viewpoint before making decisions
-
-**News Categories Impact:**
-- **Economic Data**: GDP, inflation affects entire market
-- **Corporate Earnings**: Directly impacts individual stocks
-- **Policy Changes**: Regulatory changes affect sectors
-- **Global Events**: Trade wars, oil prices, currency movements"""
-    
-    elif any(word in question_lower for word in ['calibrate', 'calibration', 'accuracy']):
-        return """## Model Calibration - Improving Prediction Accuracy
-
-**What is Calibration?**
-Our AI system tests its predictions against historical data to improve accuracy. It goes back in time, makes predictions, compares them with actual results, and adjusts the model accordingly.
-
-**How Calibration Works:**
-1. **Backtesting**: System goes back X days (where X = prediction period)
-2. **Historical Predictions**: Makes predictions for multiple past periods
-3. **Accuracy Measurement**: Compares predicted vs actual prices
-4. **Model Adjustment**: Learns from errors and improves parameters
-5. **Applied Learning**: Uses improved model for future predictions
-
-**When to Recalibrate:**
-- Before making important investment decisions
-- When prediction accuracy seems low
-- After major market events or volatility
-- For stocks you haven't analyzed recently
-- Monthly for your portfolio stocks
-
-**Calibration Results:**
-- **>90% Accuracy**: Very high confidence, strong signals
-- **80-90% Accuracy**: High confidence, reliable predictions  
-- **70-80% Accuracy**: Moderate confidence, use with other analysis
-- **<70% Accuracy**: Lower confidence, exercise caution
-
-**Benefits of Calibration:**
-- Improved prediction accuracy for specific stocks
-- Better understanding of model limitations
-- Increased confidence in trading decisions
-- Adaptive learning from market conditions
-
-**Calibration Tips:**
-- Calibrate more frequently during volatile markets
-- Combine calibrated predictions with technical analysis
-- Use calibration scores to prioritize stock selections
-- Remember: Past performance doesn't guarantee future results"""
-    
     else:
         return """## AI Investment Assistant - Ask Me Anything!
 
@@ -1380,7 +1417,7 @@ I can help you with:
 - RSI, MACD, Bollinger Bands explanations
 - Support and resistance levels
 - Chart pattern recognition
-- Indicator combinations
+- Different chart types (Candlestick, Renko, Kagi, etc.)
 
 **Stock Analysis:**
 - How to research individual stocks
@@ -1392,16 +1429,9 @@ I can help you with:
 - Model calibration and accuracy
 - AI predictions interpretation
 - Portfolio recommendations
-- News analysis and impact
+- Top performing stocks analysis
 
-**Popular Questions:**
-- "How do I start investing with ₹10,000?"
-- "What does RSI above 70 mean?"
-- "How to read the portfolio recommendations?"
-- "When should I sell a losing stock?"
-- "How to use the calibration feature?"
-
-Feel free to ask specific questions about any topic! I'm here to help you become a better investor."""
+Feel free to ask specific questions about any topic!"""
 
 def generate_sample_historical_data(current_price, days=30):
     """Generate sample historical data"""
@@ -1528,7 +1558,7 @@ def generate_sample_ohlc_data(symbol, period='3mo'):
     days = days_map.get(period, 90)
     
     dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
-    base_price = random.uniform(1000, 3000)
+    base_price = generate_realistic_price(symbol)
     data = []
     
     for i, date in enumerate(dates):
@@ -1556,175 +1586,6 @@ def generate_sample_ohlc_data(symbol, period='3mo'):
     
     df = pd.DataFrame(data, index=dates)
     return df
-
-def process_candlestick_data(hist):
-    """Process data for candlestick chart"""
-    data = []
-    for date, row in hist.iterrows():
-        data.append({
-            'date': date.strftime('%Y-%m-%d'),
-            'open': round(float(row['Open']), 2),
-            'high': round(float(row['High']), 2),
-            'low': round(float(row['Low']), 2),
-            'close': round(float(row['Close']), 2),
-            'volume': int(row['Volume'])
-        })
-    return data
-
-def process_renko_data(hist):
-    """Process data for Renko chart"""
-    brick_size = hist['Close'].std() * 0.5
-    data = []
-    current_price = float(hist['Close'].iloc[0])
-    direction = 1
-    
-    for date, row in hist.iterrows():
-        close_price = float(row['Close'])
-        price_diff = close_price - current_price
-        bricks_needed = int(abs(price_diff) / brick_size)
-        
-        if bricks_needed > 0:
-            new_direction = 1 if price_diff > 0 else -1
-            
-            for i in range(bricks_needed):
-                brick_open = current_price
-                brick_close = current_price + (brick_size * new_direction)
-                
-                data.append({
-                    'date': date.strftime('%Y-%m-%d'),
-                    'open': round(brick_open, 2),
-                    'close': round(brick_close, 2),
-                    'direction': new_direction,
-                    'brick_size': round(brick_size, 2)
-                })
-                
-                current_price = brick_close
-                direction = new_direction
-    
-    return data
-
-def process_kagi_data(hist):
-    """Process data for Kagi chart"""
-    reversal_amount = hist['Close'].std() * 0.3
-    data = []
-    current_price = float(hist['Close'].iloc[0])
-    direction = 1
-    
-    for date, row in hist.iterrows():
-        close_price = float(row['Close'])
-        
-        if direction == 1 and (current_price - close_price) > reversal_amount:
-            direction = -1
-            data.append({
-                'date': date.strftime('%Y-%m-%d'),
-                'price': round(close_price, 2),
-                'direction': direction,
-                'reversal': True
-            })
-        elif direction == -1 and (close_price - current_price) > reversal_amount:
-            direction = 1
-            data.append({
-                'date': date.strftime('%Y-%m-%d'),
-                'price': round(close_price, 2),
-                'direction': direction,
-                'reversal': True
-            })
-        else:
-            data.append({
-                'date': date.strftime('%Y-%m-%d'),
-                'price': round(close_price, 2),
-                'direction': direction,
-                'reversal': False
-            })
-        
-        current_price = close_price
-    
-    return data
-
-def process_point_figure_data(hist):
-    """Process data for Point & Figure chart"""
-    box_size = hist['Close'].std() * 0.2
-    data = []
-    current_price = float(hist['Close'].iloc[0])
-    column_type = 'X'
-    
-    for date, row in hist.iterrows():
-        high_price = float(row['High'])
-        low_price = float(row['Low'])
-        
-        if column_type == 'X':
-            x_count = int((high_price - current_price) / box_size)
-            o_count = int((current_price - low_price) / box_size)
-            
-            if x_count > 0:
-                data.append({
-                    'date': date.strftime('%Y-%m-%d'),
-                    'type': 'X',
-                    'count': x_count,
-                    'price': round(current_price + (x_count * box_size), 2)
-                })
-                current_price += x_count * box_size
-            elif o_count >= 3:
-                column_type = 'O'
-                data.append({
-                    'date': date.strftime('%Y-%m-%d'),
-                    'type': 'O',
-                    'count': o_count,
-                    'price': round(current_price - (o_count * box_size), 2)
-                })
-                current_price -= o_count * box_size
-        else:
-            o_count = int((current_price - low_price) / box_size)
-            x_count = int((high_price - current_price) / box_size)
-            
-            if o_count > 0:
-                data.append({
-                    'date': date.strftime('%Y-%m-%d'),
-                    'type': 'O',
-                    'count': o_count,
-                    'price': round(current_price - (o_count * box_size), 2)
-                })
-                current_price -= o_count * box_size
-            elif x_count >= 3:
-                column_type = 'X'
-                data.append({
-                    'date': date.strftime('%Y-%m-%d'),
-                    'type': 'X',
-                    'count': x_count,
-                    'price': round(current_price + (x_count * box_size), 2)
-                })
-                current_price += x_count * box_size
-    
-    return data
-
-def process_breakout_data(hist):
-    """Process data for Breakout chart"""
-    window = 20
-    data = []
-    
-    for i in range(window, len(hist)):
-        current_date = hist.index[i]
-        current_data = hist.iloc[i-window:i]
-        
-        resistance = current_data['High'].max()
-        support = current_data['Low'].min()
-        current_price = float(hist.iloc[i]['Close'])
-        
-        breakout_type = None
-        if current_price > resistance:
-            breakout_type = 'resistance_break'
-        elif current_price < support:
-            breakout_type = 'support_break'
-        
-        data.append({
-            'date': current_date.strftime('%Y-%m-%d'),
-            'price': round(current_price, 2),
-            'resistance': round(resistance, 2),
-            'support': round(support, 2),
-            'breakout_type': breakout_type
-        })
-    
-    return data
 
 def calculate_technical_indicators(hist):
     """Calculate technical indicators"""
@@ -1763,7 +1624,6 @@ def calculate_technical_indicators(hist):
                 
     except Exception as e:
         print(f"Error calculating indicators: {e}")
-        # Return default values if calculation fails
         indicators = {
             'sma_20': None,
             'sma_50': None,
@@ -1813,7 +1673,6 @@ def analyze_chart_patterns(hist, chart_type):
         patterns['detected_patterns'].append('Unable to analyze patterns')
     
     return patterns
-
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

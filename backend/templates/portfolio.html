@@ -28,7 +28,7 @@
             --bg-primary: #1a1a1a;
             --bg-secondary: #2d2d2d;
             --text-primary: #ffffff;
-            --text-secondary: #b0b0b0;
+            --text-secondary: #e0e0e0;
             --border-color: #404040;
             --hero-bg: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
             --card-bg: #2d2d2d;
@@ -69,6 +69,16 @@
             border-color: #667eea;
             color: var(--text-primary);
             box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .form-control::placeholder {
+            color: var(--text-secondary) !important;
+            opacity: 0.8;
+        }
+        
+        .form-label {
+            color: var(--text-primary);
+            font-weight: 500;
         }
         
         .theme-toggle {
@@ -151,6 +161,10 @@
             background-color: var(--bg-secondary) !important;
         }
         
+        .text-muted {
+            color: var(--text-secondary) !important;
+        }
+        
         .modal-content {
             background-color: var(--card-bg);
             color: var(--text-primary);
@@ -185,6 +199,102 @@
             border-radius: 10px;
             padding: 20px;
             margin-top: 20px;
+        }
+        
+        .btn-outline-primary {
+            color: #007bff;
+            border-color: #007bff;
+        }
+        
+        .btn-outline-primary:hover {
+            background-color: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
+        
+        /* AI Chat Styling */
+        .ai-chat-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .ai-chat-toggle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--hero-bg);
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .ai-chat-toggle:hover {
+            transform: scale(1.1);
+        }
+        
+        .ai-chat-panel {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            width: 350px;
+            height: 500px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: none;
+            flex-direction: column;
+        }
+        
+        .ai-chat-header {
+            background: var(--hero-bg);
+            color: white;
+            padding: 15px;
+            border-radius: 15px 15px 0 0;
+            font-weight: 600;
+        }
+        
+        .ai-chat-messages {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            max-height: 350px;
+        }
+        
+        .ai-chat-input {
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+        }
+        
+        .message.user {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+        }
+        
+        .message.ai {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        
+        .progress {
+            background-color: var(--bg-secondary);
+        }
+        
+        .badge {
+            color: white !important;
         }
     </style>
 </head>
@@ -355,6 +465,38 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- AI Chat Assistant -->
+    <div class="ai-chat-container">
+        <div class="ai-chat-panel" id="aiChatPanel">
+            <div class="ai-chat-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-robot me-2"></i>AI Portfolio Assistant</span>
+                    <button class="btn btn-sm text-white" onclick="toggleAIChat()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="ai-chat-messages" id="aiChatMessages">
+                <div class="message ai">
+                    <strong>AI Assistant:</strong> Hello! I can help you with portfolio management, stock analysis, and investment strategies. Ask me anything about your portfolio!
+                </div>
+            </div>
+            <div class="ai-chat-input">
+                <form id="aiChatForm">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="aiChatInput" placeholder="Ask about portfolio management...">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <button class="ai-chat-toggle" onclick="toggleAIChat()" title="AI Assistant">
+            <i class="fas fa-comments"></i>
+        </button>
     </div>
 
     <!-- Toast Container -->
@@ -868,6 +1010,80 @@
         function refreshPortfolio() {
             loadPortfolio();
             showToast('Info', 'Portfolio refreshed', 'info');
+        }
+
+        // AI Chat Functions
+        function toggleAIChat() {
+            const panel = document.getElementById('aiChatPanel');
+            if (panel.style.display === 'none' || panel.style.display === '') {
+                panel.style.display = 'flex';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        // AI Chat Form Handler
+        document.getElementById('aiChatForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const input = document.getElementById('aiChatInput');
+            const question = input.value.trim();
+            
+            if (!question) return;
+            
+            // Add user message
+            addChatMessage(question, 'user');
+            input.value = '';
+            
+            // Show typing indicator
+            const messagesContainer = document.getElementById('aiChatMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message ai typing';
+            typingDiv.innerHTML = '<em>AI is typing...</em>';
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            try {
+                const response = await fetch('/api/ai-assistant', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question })
+                });
+                
+                const data = await response.json();
+                
+                // Remove typing indicator
+                typingDiv.remove();
+                
+                // Add AI response
+                addChatMessage(data.response, 'ai');
+                
+            } catch (error) {
+                typingDiv.remove();
+                addChatMessage('Sorry, I encountered an error. Please try again.', 'ai');
+            }
+        });
+
+        function addChatMessage(message, sender) {
+            const messagesContainer = document.getElementById('aiChatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            if (sender === 'ai') {
+                // Convert markdown-like formatting to HTML
+                const formattedMessage = message
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br>');
+                messageDiv.innerHTML = formattedMessage;
+            } else {
+                messageDiv.textContent = message;
+            }
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
         // Logout function
