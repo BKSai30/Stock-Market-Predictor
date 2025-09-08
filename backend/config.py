@@ -15,6 +15,9 @@ class Config:
     # API Keys (You need to get these from respective services)
     ALPHA_VANTAGE_API_KEY = os.environ.get('ALPHA_VANTAGE_API_KEY') or 'your-alpha-vantage-key'
     NEWS_API_KEY = os.environ.get('NEWS_API_KEY') or 'your-news-api-key'
+    FINNHUB_API_KEY = os.environ.get('FINNHUB_API_KEY') or os.environ.get('FINNHUB_TOKEN')
+    PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY') or os.environ.get('PPLX_API_KEY')
+    PERPLEXITY_MODEL = os.environ.get('PERPLEXITY_MODEL') or 'sonar-small-online'
     
     # Data fetching settings
     DATA_CACHE_DURATION = timedelta(minutes=15)  # Cache data for 15 minutes

@@ -360,6 +360,45 @@
             background: var(--hero-bg);
             color: white;
         }
+
+        .info-tooltip {
+            position: relative;
+            cursor: help;
+        }
+        
+        .tooltip-content {
+            visibility: hidden;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            width: 200px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .info-tooltip:hover .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .tooltip-content::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
     </style>
 </head>
 <body>
@@ -441,8 +480,8 @@
                                     </div>
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label for="daysAhead" class="form-label">Prediction Period</label>
-                                    <select class="form-select" id="daysAhead" required>
+                                    <label for="predictionDays" class="form-label">Prediction Period</label>
+                                    <select class="form-select" id="predictionDays" required>
                                         <option value="5">5 Days</option>
                                         <option value="10">10 Days</option>
                                         <option value="15">15 Days</option>
@@ -459,11 +498,35 @@
                     </div>
                 </div>
 
+                <!-- Loading State -->
+                <div id="predictionLoading" style="display: none;">
+                    <div class="card mb-4">
+                        <div class="card-body text-center">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <h5>Analyzing Stock Data...</h5>
+                            <p class="text-muted">Our AI is processing market data, technical indicators, and sentiment analysis.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Initial State -->
+                <div id="predictionInitial">
+                    <div class="card mb-4">
+                        <div class="card-body text-center py-5">
+                            <i class="fas fa-chart-line text-muted" style="font-size: 3rem;"></i>
+                            <h5 class="mt-3">Enter a stock symbol above to get started</h5>
+                            <p class="text-muted">Get AI-powered predictions, technical analysis, and comprehensive insights</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Prediction Results -->
-                <div id="predictionResults" style="display: none;">
+                <div id="predictionResults" class="d-none">
                     <div class="card prediction-card mb-4">
                         <div class="card-header">
-                            <h5 class="mb-0" id="resultTitle">Prediction Results</h5>
+                            <h5 class="mb-0" id="stockName">Prediction Results</h5>
                         </div>
                         <div class="card-body">
                             <div class="row">
@@ -475,7 +538,7 @@
                                 </div>
                                 <div class="col-md-6">
                                     <div class="text-center">
-                                        <h6 class="text-muted">Predicted Price</h6>
+                                        <h6 class="text-muted">Predicted Price <span id="predictionPeriodLabel">(5-day)</span></h6>
                                         <div class="h2" id="predictedPrice">₹0.00</div>
                                         <small id="priceChange" class="text-muted"></small>
                                     </div>
@@ -484,33 +547,72 @@
                             <div class="row mt-3">
                                 <div class="col-md-4 text-center">
                                     <h6 class="text-muted">Recommendation</h6>
-                                    <span class="badge fs-6" id="recommendation">HOLD</span>
+                                    <span class="badge fs-6" id="recommendationBadge">HOLD</span>
                                 </div>
                                 <div class="col-md-4 text-center">
                                     <h6 class="text-muted">Confidence</h6>
-                                    <div class="h5" id="confidence">0%</div>
+                                    <div class="progress mt-1" style="height: 20px;">
+                                        <div class="progress-bar" id="confidenceBar" role="progressbar" style="width: 0%">0%</div>
+                                    </div>
                                 </div>
                                 <div class="col-md-4 text-center">
-                                    <button class="btn btn-outline-primary" onclick="calibrateModel()">
+                                    <button class="btn btn-outline-primary" id="calibrateBtn" onclick="calibrateModel()" style="display: none;">
                                         <i class="fas fa-cog me-2"></i>Calibrate Model
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Price Chart -->
-                <div id="chartSection" class="card mb-4" style="display: none;">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-chart-area me-2"></i>
-                            Price Movement & Prediction
-                        </h5>
+                    <!-- Price Chart -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-chart-area me-2"></i>
+                                Price Movement & Prediction
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="predictionChart"></canvas>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="priceChart"></canvas>
+
+                    <!-- Enhanced Analysis -->
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Enhanced Recommendation</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="enhancedRecommendation"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">AI Analysis</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="aiAnalysis"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sentiment Analysis -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-heart me-2"></i>
+                                Sentiment Analysis
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div id="sentimentAnalysis"></div>
                         </div>
                     </div>
                 </div>
@@ -551,16 +653,10 @@
                                 <button class="chart-control-btn" onclick="zoomOut()" title="Zoom Out">
                                     <i class="fas fa-search-minus"></i>
                                 </button>
-                                <button class="chart-control-btn" onclick="panLeft()" title="Pan Left">
-                                    <i class="fas fa-arrow-left"></i>
-                                </button>
-                                <button class="chart-control-btn" onclick="panRight()" title="Pan Right">
-                                    <i class="fas fa-arrow-right"></i>
-                                </button>
                             </div>
                             <canvas id="technicalChart"></canvas>
                         </div>
-                        <div class="row mt-3">
+                        <div class="row mt-3" id="chartPatternAnalysis" style="display: none;">
                             <div class="col-md-6">
                                 <h6>Technical Indicators</h6>
                                 <div id="technicalIndicators">
@@ -572,7 +668,7 @@
                             </div>
                             <div class="col-md-6">
                                 <h6>Chart Patterns</h6>
-                                <div id="chartPatterns">
+                                <div id="candlestickPatterns">
                                     <div class="loading-spinner">
                                         <div class="spinner-border spinner-border-sm" role="status"></div>
                                         <span class="ms-2">Analyzing patterns...</span>
@@ -600,13 +696,13 @@
                             <div class="w-100 mb-2">
                                 <label class="form-label text-muted small">Category:</label>
                                 <div class="d-grid gap-1">
-                                    <button class="btn btn-outline-primary btn-sm category-btn active" data-category="safe">
+                                    <button class="btn btn-outline-primary btn-sm volatility-btn active" data-category="safe">
                                         Safe Stocks
                                     </button>
-                                    <button class="btn btn-outline-primary btn-sm category-btn" data-category="volatile">
+                                    <button class="btn btn-outline-primary btn-sm volatility-btn" data-category="volatile">
                                         Volatile Stocks
                                     </button>
-                                    <button class="btn btn-outline-primary btn-sm category-btn" data-category="highly_volatile">
+                                    <button class="btn btn-outline-primary btn-sm volatility-btn" data-category="highly_volatile">
                                         High Risk/Reward
                                     </button>
                                 </div>
@@ -647,28 +743,18 @@
                 
                 <!-- Market Summary -->
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
                             <i class="fas fa-chart-line me-2"></i>
                             Market Summary
                         </h5>
+                        <small class="market-status text-muted"></small>
                     </div>
                     <div class="card-body">
-                        <div class="text-center">
-                            <div class="mb-3">
-                                <h6>NIFTY 50</h6>
-                                <div class="h4 text-success">19,674.25</div>
-                                <small class="text-success">+124.35 (+0.64%)</small>
-                            </div>
-                            <div class="mb-3">
-                                <h6>SENSEX</h6>
-                                <div class="h4 text-success">65,834.69</div>
-                                <small class="text-success">+389.75 (+0.60%)</small>
-                            </div>
-                            <div>
-                                <h6>FII Investment</h6>
-                                <div class="h6 text-primary">₹2,456 Cr</div>
-                                <small class="text-muted">Net buying today</small>
+                        <div class="row" id="marketIndices">
+                            <div class="loading-spinner text-center">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <span class="ms-2">Loading market indices...</span>
                             </div>
                         </div>
                     </div>
@@ -690,7 +776,7 @@
             </div>
             <div class="ai-chat-messages" id="aiChatMessages">
                 <div class="message ai">
-                    <strong>AI Assistant:</strong> Hello! I can help you understand stock predictions, explain technical indicators, and provide investment guidance. Ask me anything!
+                    <strong>AI Assistant:</strong> Hello! I can help you understand stock predictions, explain technical indicators, and provide investment guidance. I search the web for the latest information to give you accurate answers. Ask me anything!
                 </div>
             </div>
             <div class="ai-chat-input">
@@ -709,6 +795,19 @@
         </button>
     </div>
 
+    <!-- Notification Toast -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto" id="toastTitle">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastMessage">
+                <!-- Toast message will be populated here -->
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -716,10 +815,9 @@
     
     <script>
         let currentStockSymbol = '';
-        let priceChart;
+        let predictionChart;
         let technicalChart;
         let currentChartType = 'candlestick';
-        let currentChartData = null;
 
         // Theme Management
         function toggleTheme() {
@@ -735,6 +833,9 @@
                 themeIcon.className = 'fas fa-moon';
                 localStorage.setItem('theme', 'light');
             }
+            
+            // Update charts for theme change
+            updateChartsForTheme();
         }
 
         // Load saved theme
@@ -748,29 +849,56 @@
             // Load top stocks
             loadTopStocks();
             
-            // Setup category buttons
-            setupCategoryButtons();
-            
-            // Setup chart controls
-            setupChartControls();
-            
-            // Setup stock controls
-            setupStockControls();
+            // Setup event listeners
+            setupEventListeners();
+
+            // Load market indices initially and on interval
+            updateMarketIndices();
+            setInterval(updateMarketIndices, 30000);
         });
 
+        function setupEventListeners() {
+            // Prediction form
+            document.getElementById('predictionForm').addEventListener('submit', handlePredictionSubmit);
+            
+            // Volatility buttons
+            document.querySelectorAll('.volatility-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.volatility-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    loadTopStocks();
+                });
+            });
+            
+            // Stock controls
+            document.getElementById('stockCount').addEventListener('change', loadTopStocks);
+            document.getElementById('timePeriod').addEventListener('change', loadTopStocks);
+            
+            // Chart type selector
+            document.getElementById('chartTypeSelect').addEventListener('change', function() {
+                updateTechnicalChart(this.value);
+            });
+            
+            document.getElementById('chartPeriodSelect').addEventListener('change', function() {
+                updateTechnicalChart(document.getElementById('chartTypeSelect').value);
+            });
+        }
+
         // Prediction Form Handler
-        document.getElementById('predictionForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
+        async function handlePredictionSubmit(event) {
+            if (event) event.preventDefault();
             
             const stockInput = document.getElementById('stockInput').value.trim();
-            const daysAhead = document.getElementById('daysAhead').value;
+            const days = document.getElementById('predictionDays').value;
             
-            if (!stockInput) return;
+            if (!stockInput) {
+                showToast('Error', 'Please enter a stock symbol', 'error');
+                return;
+            }
+            
+            showPredictionLoading(true);
             
             try {
-                // Show loading
-                showLoading('Analyzing stock and generating prediction...');
-                
                 // Search for stock first
                 const searchResponse = await fetch('/api/search-stock', {
                     method: 'POST',
@@ -787,7 +915,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         symbol: symbol,
-                        days_ahead: parseInt(daysAhead)
+                        days_ahead: parseInt(days)
                     })
                 });
                 
@@ -802,196 +930,209 @@
                 }
                 
                 currentStockSymbol = data.symbol;
-                displayPrediction(data);
+                displayPredictionResults(data);
                 
                 // Load technical charts
-                loadTechnicalCharts(data.symbol);
+                updateTechnicalChart('candlestick');
                 
-                hideLoading();
+                showPredictionLoading(false);
                 
             } catch (error) {
                 console.error('Prediction error:', error);
-                hideLoading();
-                alert('Error generating prediction: ' + error.message);
+                showPredictionLoading(false);
+                showToast('Error', error.message, 'error');
+                showPredictionInitial();
             }
-        });
+        }
 
-        function displayPrediction(data) {
-            // Update prediction results
-            document.getElementById('resultTitle').textContent = `${data.name} (${data.symbol}) - ${data.days_ahead} Day Prediction`;
+        function showPredictionLoading(show) {
+            const elements = {
+                loading: document.getElementById('predictionLoading'),
+                initial: document.getElementById('predictionInitial'),
+                results: document.getElementById('predictionResults')
+            };
+            
+            if (show) {
+                elements.loading.style.display = 'block';
+                elements.initial.style.display = 'none';
+                elements.results.classList.add('d-none');
+            } else {
+                elements.loading.style.display = 'none';
+            }
+        }
+
+        function showPredictionInitial() {
+            const elements = {
+                loading: document.getElementById('predictionLoading'),
+                initial: document.getElementById('predictionInitial'),
+                results: document.getElementById('predictionResults')
+            };
+            
+            elements.loading.style.display = 'none';
+            elements.initial.style.display = 'block';
+            elements.results.classList.add('d-none');
+        }
+
+        function displayPredictionResults(data) {
+            // Hide loading and initial states
+            document.getElementById('predictionLoading').style.display = 'none';
+            document.getElementById('predictionInitial').style.display = 'none';
+            document.getElementById('predictionResults').classList.remove('d-none');
+            
+            // Update basic info
+            document.getElementById('stockName').textContent = `${data.symbol} - ${data.name}`;
             document.getElementById('currentPrice').textContent = `₹${data.current_price}`;
             document.getElementById('predictedPrice').textContent = `₹${data.predicted_price}`;
+            document.getElementById('predictionPeriodLabel').textContent = `(${data.days_ahead}-day)`;
             
-            const changeText = data.price_change_pct >= 0 ? 
-                `+${data.price_change_pct}%` : `${data.price_change_pct}%`;
-            const changeClass = data.price_change_pct >= 0 ? 'text-success' : 'text-danger';
+            // Update price change
+            const priceChange = data.predicted_price - data.current_price;
+            const priceChangeElement = document.getElementById('priceChange');
+            const changeClass = priceChange >= 0 ? 'text-success' : 'text-danger';
+            const changeIcon = priceChange >= 0 ? 'up' : 'down';
             
-            document.getElementById('priceChange').textContent = changeText;
-            document.getElementById('priceChange').className = `text-muted ${changeClass}`;
+            priceChangeElement.textContent = `${priceChange >= 0 ? '+' : ''}₹${Math.abs(priceChange).toFixed(2)} (${data.price_change_pct >= 0 ? '+' : ''}${data.price_change_pct}%)`;
+            priceChangeElement.className = `text-muted ${changeClass}`;
             
-            // Update recommendation
-            const recommendation = document.getElementById('recommendation');
-            recommendation.textContent = data.recommendation;
-            recommendation.className = `badge fs-6 ${getRecommendationClass(data.recommendation)}`;
+            // Update confidence
+            const confidenceBar = document.getElementById('confidenceBar');
+            confidenceBar.style.width = `${data.confidence}%`;
+            confidenceBar.textContent = `${data.confidence}%`;
             
-            document.getElementById('confidence').textContent = `${data.confidence}%`;
+            // Update recommendation badge
+            const recommendationBadge = document.getElementById('recommendationBadge');
+            recommendationBadge.textContent = data.recommendation;
+            recommendationBadge.className = `badge fs-6 ${getRecommendationClass(data.recommendation)}`;
             
-            // Update prediction card class
-            const predictionCard = document.querySelector('.prediction-card');
-            predictionCard.className = `card prediction-card mb-4 ${getRecommendationClass(data.recommendation).replace('bg-', '')}`;
+            // Show calibrate button
+            document.getElementById('calibrateBtn').style.display = 'inline-block';
             
-            // Show results
-            document.getElementById('predictionResults').style.display = 'block';
+            // Update prediction chart
+            updatePredictionChart(data);
             
-            // Create price chart
-            createPriceChart(data.historical_data, data.prediction_data);
-            document.getElementById('chartSection').style.display = 'block';
+            // Update enhanced recommendation
+            updateEnhancedRecommendation(data.enhanced_recommendation);
+            
+            // Update AI analysis
+            updateAIAnalysis(data.ai_analysis);
+            
+            // Update sentiment analysis
+            updateSentimentAnalysis(data.sentiment_analysis);
         }
 
-        function getRecommendationClass(recommendation) {
-            switch(recommendation.toLowerCase()) {
-                case 'buy':
-                case 'strong buy':
-                    return 'bg-success';
-                case 'sell':
-                case 'strong sell':
-                    return 'bg-danger';
-                default:
-                    return 'bg-warning';
-            }
-        }
-
-        function createPriceChart(historicalData, predictionData) {
-            const ctx = document.getElementById('priceChart').getContext('2d');
+        function updatePredictionChart(data) {
+            const ctx = document.getElementById('predictionChart');
+            if (!ctx) return;
             
-            if (priceChart) {
-                priceChart.destroy();
+            if (predictionChart) {
+                predictionChart.destroy();
             }
             
-            const allData = [...historicalData, ...predictionData];
-            const labels = allData.map(d => d.date);
-            const predictionStart = historicalData.length;
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#ffffff' : '#212529';
+            const gridColor = isDark ? '#404040' : '#dee2e6';
             
-            priceChart = new Chart(ctx, {
+            // Combine historical and prediction data
+            const allData = [...data.historical_data, ...data.prediction_data.slice(1)];
+            const labels = allData.map(item => item.date);
+            const prices = allData.map(item => item.price);
+            
+            // Split data for different styling
+            const historicalPrices = data.historical_data.map(item => item.price);
+            const predictionPrices = new Array(historicalPrices.length - 1).fill(null);
+            predictionPrices.push(data.current_price);
+            predictionPrices.push(...data.prediction_data.slice(1).map(item => item.price));
+            
+            predictionChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
-                    datasets: [{
-                        label: 'Historical Price',
-                        data: historicalData.map(d => d.price),
-                        borderColor: '#007bff',
-                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                        tension: 0.1,
-                        fill: true
-                    }, {
-                        label: 'Predicted Price',
-                        data: [...Array(predictionStart).fill(null), ...predictionData.map(d => d.price)],
-                        borderColor: '#28a745',
-                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                        borderDash: [5, 5],
-                        tension: 0.1,
-                        fill: false
-                    }]
+                    datasets: [
+                        {
+                            label: 'Historical Price',
+                            data: [...historicalPrices, ...new Array(data.prediction_data.length - 1).fill(null)],
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Predicted Price',
+                            data: predictionPrices,
+                            borderColor: '#28a745',
+                            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.1
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    },
                     plugins: {
-                        zoom: {
-                            zoom: {
-                                wheel: {
-                                    enabled: true,
-                                },
-                                pinch: {
-                                    enabled: true
-                                },
-                                mode: 'x',
-                            },
-                            pan: {
-                                enabled: true,
-                                mode: 'x',
-                            }
-                        },
                         legend: {
-                            display: true,
-                            position: 'top'
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `${context.dataset.label}: ₹${context.parsed.y.toFixed(2)}`;
-                                }
-                            }
+                            labels: { color: textColor }
                         }
                     },
                     scales: {
                         x: {
-                            display: true,
-                            title: {
-                                display: true,
-                                text: 'Date'
-                            }
+                            ticks: { color: textColor },
+                            grid: { color: gridColor }
                         },
                         y: {
-                            display: true,
-                            title: {
-                                display: true,
-                                text: 'Price (₹)'
-                            }
+                            ticks: { 
+                                color: textColor,
+                                callback: function(value) {
+                                    return '₹' + value.toFixed(2);
+                                }
+                            },
+                            grid: { color: gridColor }
                         }
                     }
                 }
             });
         }
 
-        async function loadTechnicalCharts(symbol) {
+        async function updateTechnicalChart(chartType) {
+            if (!currentStockSymbol) return;
+            
             try {
-                const chartType = document.getElementById('chartTypeSelect').value;
                 const period = document.getElementById('chartPeriodSelect').value;
-                
-                const response = await fetch(`/api/technical-chart/${symbol}?type=${chartType}&period=${period}`);
+                const response = await fetch(`/api/technical-chart/${currentStockSymbol}?type=${chartType}&period=${period}`);
                 const data = await response.json();
                 
-                if (data.success) {
-                    currentChartData = data;
-                    currentChartType = chartType;
-                    createTechnicalChart(data);
-                    displayTechnicalIndicators(data.indicators);
+                if (response.ok && data.success) {
+                    displayTechnicalChart(data, chartType);
                     displayChartPatterns(data.patterns);
+                    displayTechnicalIndicators(data.indicators);
                     document.getElementById('technicalChartsSection').style.display = 'block';
+                    document.getElementById('chartPatternAnalysis').style.display = 'block';
                     
                     // Update chart type indicator
                     document.getElementById('chartTypeIndicator').textContent = getChartTypeDisplayName(chartType);
                 } else {
-                    console.error('Failed to load technical charts:', data.error);
+                    console.error('Failed to load technical chart:', data.error);
                 }
                 
             } catch (error) {
-                console.error('Error loading technical charts:', error);
+                console.error('Technical chart error:', error);
             }
         }
 
-        function getChartTypeDisplayName(type) {
-            const displayNames = {
-                'candlestick': 'Candlestick',
-                'renko': 'Renko',
-                'kagi': 'Kagi',
-                'point_figure': 'Point & Figure',
-                'breakout': 'Breakout'
-            };
-            return displayNames[type] || type;
-        }
-
-        function createTechnicalChart(data) {
-            const ctx = document.getElementById('technicalChart').getContext('2d');
+        function displayTechnicalChart(data, chartType) {
+            const container = document.getElementById('technicalChart');
+            if (!container) return;
             
             if (technicalChart) {
                 technicalChart.destroy();
             }
+            
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#ffffff' : '#212529';
+            const gridColor = isDark ? '#404040' : '#dee2e6';
             
             const chartData = data.data;
             const labels = chartData.map(d => d.date);
@@ -999,27 +1140,22 @@
             let datasets = [];
             
             // Create different chart types
-            switch (data.chart_type) {
-                case 'candlestick':
-                    datasets = createCandlestickDatasets(chartData);
-                    break;
-                case 'renko':
-                    datasets = createRenkoDatasets(chartData);
-                    break;
-                case 'kagi':
-                    datasets = createKagiDatasets(chartData);
-                    break;
-                case 'point_figure':
-                    datasets = createPointFigureDatasets(chartData);
-                    break;
-                case 'breakout':
-                    datasets = createBreakoutDatasets(chartData);
-                    break;
-                default:
-                    datasets = createCandlestickDatasets(chartData);
+            if (chartType === 'candlestick') {
+                datasets = createCandlestickDatasets(chartData);
+            } else {
+                // For other chart types, use simple line chart
+                datasets = [{
+                    label: `${data.symbol} - ${chartType.charAt(0).toUpperCase() + chartType.slice(1)}`,
+                    data: chartData.map(item => item.close || item.price || 0),
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.1
+                }];
             }
             
-            technicalChart = new Chart(ctx, {
+            technicalChart = new Chart(container, {
                 type: 'line',
                 data: {
                     labels: labels,
@@ -1028,51 +1164,21 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false,
-                    },
                     plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { color: textColor }
+                        },
                         zoom: {
                             zoom: {
-                                wheel: {
-                                    enabled: true,
-                                },
-                                pinch: {
-                                    enabled: true
-                                },
-                                mode: 'xy',
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                mode: 'x'
                             },
                             pan: {
                                 enabled: true,
-                                mode: 'xy',
-                            }
-                        },
-                        legend: {
-                            display: true,
-                            position: 'top'
-                        },
-                        tooltip: {
-                            callbacks: {
-                                title: function(context) {
-                                    return context[0].label;
-                                },
-                                label: function(context) {
-                                    const index = context.dataIndex;
-                                    const dataPoint = chartData[index];
-                                    
-                                    if (data.chart_type === 'candlestick' && dataPoint.open !== undefined) {
-                                        return [
-                                            `Open: ₹${dataPoint.open}`,
-                                            `High: ₹${dataPoint.high}`,
-                                            `Low: ₹${dataPoint.low}`,
-                                            `Close: ₹${dataPoint.close}`,
-                                            `Volume: ${dataPoint.volume?.toLocaleString() || 'N/A'}`
-                                        ];
-                                    } else {
-                                        return `${context.dataset.label}: ₹${context.parsed.y.toFixed(2)}`;
-                                    }
-                                }
+                                mode: 'x'
                             }
                         }
                     },
@@ -1081,15 +1187,26 @@
                             display: true,
                             title: {
                                 display: true,
-                                text: 'Date'
-                            }
+                                text: 'Date',
+                                color: textColor
+                            },
+                            ticks: { color: textColor },
+                            grid: { color: gridColor }
                         },
                         y: {
                             display: true,
                             title: {
                                 display: true,
-                                text: 'Price (₹)'
-                            }
+                                text: 'Price (₹)',
+                                color: textColor
+                            },
+                            ticks: { 
+                                color: textColor,
+                                callback: function(value) {
+                                    return '₹' + value.toFixed(2);
+                                }
+                            },
+                            grid: { color: gridColor }
                         }
                     }
                 }
@@ -1125,311 +1242,79 @@
             }];
         }
 
-        function createRenkoDatasets(chartData) {
-            const upBricks = [];
-            const downBricks = [];
-            
-            chartData.forEach((d, i) => {
-                if (d.direction === 1) {
-                    upBricks.push(d.close);
-                    downBricks.push(null);
-                } else {
-                    upBricks.push(null);
-                    downBricks.push(d.close);
-                }
-            });
-            
-            return [{
-                label: 'Up Bricks',
-                data: upBricks,
-                borderColor: '#28a745',
-                backgroundColor: 'rgba(40, 167, 69, 0.3)',
-                stepped: true,
-                fill: false
-            }, {
-                label: 'Down Bricks',
-                data: downBricks,
-                borderColor: '#dc3545',
-                backgroundColor: 'rgba(220, 53, 69, 0.3)',
-                stepped: true,
-                fill: false
-            }];
-        }
-
-        function createKagiDatasets(chartData) {
-            const prices = chartData.map(d => d.price);
-            return [{
-                label: 'Kagi Line',
-                data: prices,
-                borderColor: '#007bff',
-                backgroundColor: 'transparent',
-                tension: 0,
-                pointRadius: 2,
-                borderWidth: 2,
-                fill: false
-            }];
-        }
-
-        function createPointFigureDatasets(chartData) {
-            const xData = [];
-            const oData = [];
-            
-            chartData.forEach((d, i) => {
-                if (d.type === 'X') {
-                    xData.push(d.price);
-                    oData.push(null);
-                } else {
-                    xData.push(null);
-                    oData.push(d.price);
-                }
-            });
-            
-            return [{
-                label: 'X Column',
-                data: xData,
-                borderColor: '#28a745',
-                backgroundColor: 'rgba(40, 167, 69, 0.3)',
-                pointStyle: 'cross',
-                pointRadius: 5,
-                showLine: false
-            }, {
-                label: 'O Column',
-                data: oData,
-                borderColor: '#dc3545',
-                backgroundColor: 'rgba(220, 53, 69, 0.3)',
-                pointStyle: 'circle',
-                pointRadius: 5,
-                showLine: false
-            }];
-        }
-
-        function createBreakoutDatasets(chartData) {
-            return [{
-                label: 'Price',
-                data: chartData.map(d => d.price),
-                borderColor: '#007bff',
-                backgroundColor: 'transparent',
-                tension: 0.1,
-                pointRadius: 1,
-                fill: false
-            }, {
-                label: 'Resistance',
-                data: chartData.map(d => d.resistance),
-                borderColor: '#dc3545',
-                backgroundColor: 'transparent',
-                borderDash: [5, 5],
-                tension: 0,
-                pointRadius: 0,
-                fill: false
-            }, {
-                label: 'Support',
-                data: chartData.map(d => d.support),
-                borderColor: '#28a745',
-                backgroundColor: 'transparent',
-                borderDash: [5, 5],
-                tension: 0,
-                pointRadius: 0,
-                fill: false
-            }];
+        function getChartTypeDisplayName(type) {
+            const displayNames = {
+                'candlestick': 'Candlestick',
+                'renko': 'Renko',
+                'kagi': 'Kagi',
+                'point_figure': 'Point & Figure',
+                'breakout': 'Breakout'
+            };
+            return displayNames[type] || type;
         }
 
         function displayTechnicalIndicators(indicators) {
             const container = document.getElementById('technicalIndicators');
             
-            let html = '<div class="row">';
+            const indicatorsList = [
+                { 
+                    key: 'rsi', 
+                    label: 'RSI (14)', 
+                    tooltip: 'Relative Strength Index - measures overbought/oversold conditions. Values above 70 suggest overbought, below 30 suggest oversold.' 
+                },
+                { 
+                    key: 'macd', 
+                    label: 'MACD', 
+                    tooltip: 'Moving Average Convergence Divergence - trend-following momentum indicator. Positive values suggest bullish momentum.' 
+                },
+                { 
+                    key: 'sma_20', 
+                    label: 'SMA (20)', 
+                    tooltip: 'Simple Moving Average (20 days) - average price over last 20 days. Price above SMA suggests uptrend.' 
+                },
+                { 
+                    key: 'bb_upper', 
+                    label: 'BB Upper', 
+                    tooltip: 'Bollinger Bands Upper - price touching upper band may indicate overbought condition.' 
+                },
+                { 
+                    key: 'bb_lower', 
+                    label: 'BB Lower', 
+                    tooltip: 'Bollinger Bands Lower - price touching lower band may indicate oversold condition.' 
+                }
+            ];
             
-            if (indicators.rsi !== null) {
-                const rsiClass = indicators.rsi > 70 ? 'bg-danger' : indicators.rsi < 30 ? 'bg-success' : 'bg-secondary';
-                const rsiText = indicators.rsi > 70 ? 'Overbought' : indicators.rsi < 30 ? 'Oversold' : 'Neutral';
-                html += `
-                    <div class="col-12 mb-2">
-                        <small class="text-muted">RSI (14):</small>
-                        <div class="d-flex justify-content-between">
-                            <span>${indicators.rsi}</span>
-                            <span class="badge ${rsiClass}">${rsiText}</span>
-                        </div>
+            container.innerHTML = indicatorsList.map(indicator => {
+                const value = indicators[indicator.key];
+                const displayValue = value !== null && value !== undefined ? 
+                    (typeof value === 'number' ? value.toFixed(2) : value) : 'N/A';
+                
+                return `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>${indicator.label}
+                            <i class="fas fa-info-circle info-tooltip ms-1">
+                                <div class="tooltip-content">${indicator.tooltip}</div>
+                            </i>
+                        </span>
+                        <strong>₹${displayValue}</strong>
                     </div>
                 `;
-            }
-            
-            if (indicators.macd !== null) {
-                html += `
-                    <div class="col-12 mb-2">
-                        <small class="text-muted">MACD:</small>
-                        <div class="d-flex justify-content-between">
-                            <span>₹${indicators.macd}</span>
-                            <span class="badge ${indicators.macd > 0 ? 'bg-success' : 'bg-danger'}">${indicators.macd > 0 ? 'Bullish' : 'Bearish'}</span>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            if (indicators.sma_20 !== null) {
-                html += `
-                    <div class="col-12 mb-2">
-                        <small class="text-muted">SMA (20):</small>
-                        <div>₹${indicators.sma_20}</div>
-                    </div>
-                `;
-            }
-            
-            if (indicators.bb_upper !== null && indicators.bb_lower !== null) {
-                html += `
-                    <div class="col-12 mb-2">
-                        <small class="text-muted">Bollinger Bands:</small>
-                        <div>Upper: ₹${indicators.bb_upper}</div>
-                        <div>Lower: ₹${indicators.bb_lower}</div>
-                    </div>
-                `;
-            }
-            
-            html += '</div>';
-            container.innerHTML = html;
+            }).join('');
         }
 
         function displayChartPatterns(patterns) {
-            const container = document.getElementById('chartPatterns');
+            const container = document.getElementById('candlestickPatterns');
+            if (!container) return;
             
-            let html = '<div class="row">';
-            
-            if (patterns.detected_patterns && patterns.detected_patterns.length > 0) {
-                html += `
-                    <div class="col-12 mb-2">
-                        <small class="text-muted">Detected Patterns:</small>
-                        <div>
-                            ${patterns.detected_patterns.map(pattern => 
-                                `<span class="badge bg-info me-1">${pattern}</span>`
-                            ).join('')}
-                        </div>
-                    </div>
-                `;
+            if (patterns && patterns.detected_patterns && patterns.detected_patterns.length > 0) {
+                container.innerHTML = patterns.detected_patterns.map(pattern => 
+                    `<div class="mb-2">
+                        <span class="badge bg-primary">${pattern}</span>
+                    </div>`
+                ).join('');
+            } else {
+                container.innerHTML = '<small class="text-muted">No significant patterns detected</small>';
             }
-            
-            if (patterns.support_levels && patterns.support_levels.length > 0) {
-                html += `
-                    <div class="col-12 mb-2">
-                        <small class="text-muted">Support Levels:</small>
-                        <div>
-                            ${patterns.support_levels.map(level => 
-                                `<span class="badge bg-success me-1">₹${level}</span>`
-                            ).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            if (patterns.resistance_levels && patterns.resistance_levels.length > 0) {
-                html += `
-                    <div class="col-12 mb-2">
-                        <small class="text-muted">Resistance Levels:</small>
-                        <div>
-                            ${patterns.resistance_levels.map(level => 
-                                `<span class="badge bg-danger me-1">₹${level}</span>`
-                            ).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            html += '</div>';
-            container.innerHTML = html;
-        }
-
-        function setupChartControls() {
-            document.getElementById('chartTypeSelect').addEventListener('change', function() {
-                if (currentStockSymbol) {
-                    loadTechnicalCharts(currentStockSymbol);
-                }
-            });
-            
-            document.getElementById('chartPeriodSelect').addEventListener('change', function() {
-                if (currentStockSymbol) {
-                    loadTechnicalCharts(currentStockSymbol);
-                }
-            });
-        }
-
-        // Chart Control Functions
-        function resetChartZoom() {
-            if (technicalChart) {
-                technicalChart.resetZoom();
-            }
-        }
-
-        function zoomIn() {
-            if (technicalChart) {
-                technicalChart.zoom(1.1);
-            }
-        }
-
-        function zoomOut() {
-            if (technicalChart) {
-                technicalChart.zoom(0.9);
-            }
-        }
-
-        function panLeft() {
-            if (technicalChart) {
-                technicalChart.pan({x: -50}, undefined, 'default');
-            }
-        }
-
-        function panRight() {
-            if (technicalChart) {
-                technicalChart.pan({x: 50}, undefined, 'default');
-            }
-        }
-
-        async function calibrateModel() {
-            if (!currentStockSymbol) return;
-            
-            try {
-                showLoading('Calibrating prediction model...');
-                
-                const response = await fetch('/api/calibrate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        symbol: currentStockSymbol,
-                        days_ahead: parseInt(document.getElementById('daysAhead').value)
-                    })
-                });
-                
-                const data = await response.json();
-                
-                hideLoading();
-                
-                if (data.error) {
-                    alert('Calibration failed: ' + data.error);
-                } else {
-                    alert(`Model calibrated! Accuracy: ${data.accuracy_score.toFixed(2)}%`);
-                }
-                
-            } catch (error) {
-                hideLoading();
-                alert('Calibration failed: ' + error.message);
-            }
-        }
-
-        // Top Stocks Management
-        function setupCategoryButtons() {
-            const buttons = document.querySelectorAll('.category-btn');
-            
-            buttons.forEach(button => {
-                button.addEventListener('click', function() {
-                    // Remove active class from all buttons
-                    buttons.forEach(btn => btn.classList.remove('active'));
-                    // Add active class to clicked button
-                    this.classList.add('active');
-                    
-                    loadTopStocks();
-                });
-            });
-        }
-
-        function setupStockControls() {
-            document.getElementById('stockCount').addEventListener('change', loadTopStocks);
-            document.getElementById('timePeriod').addEventListener('change', loadTopStocks);
         }
 
         async function loadTopStocks() {
@@ -1442,7 +1327,7 @@
                     </div>
                 `;
                 
-                const category = document.querySelector('.category-btn.active').dataset.category;
+                const category = document.querySelector('.volatility-btn.active').dataset.category;
                 const count = document.getElementById('stockCount').value;
                 const timePeriod = document.getElementById('timePeriod').value;
                 
@@ -1496,7 +1381,7 @@
                     
                     <div class="row text-center mt-2">
                         <div class="col-6">
-                            <small class="text-muted">${timePeriod}D Change</small>
+                            <small class="text-muted">${timePeriod}D Historical Change</small>
                             <div class="small ${stock.price_change >= 0 ? 'text-success' : 'text-danger'}">
                                 ${stock.price_change >= 0 ? '+' : ''}${stock.price_change.toFixed(2)}%
                             </div>
@@ -1521,13 +1406,9 @@
 
         async function quickPredict(symbol) {
             try {
-                // Fill the main prediction form
                 document.getElementById('stockInput').value = symbol;
+                await handlePredictionSubmit();
                 
-                // Trigger prediction
-                document.getElementById('predictionForm').dispatchEvent(new Event('submit'));
-                
-                // Scroll to results
                 setTimeout(() => {
                     document.getElementById('predictionResults').scrollIntoView({ 
                         behavior: 'smooth' 
@@ -1536,7 +1417,71 @@
                 
             } catch (error) {
                 console.error('Quick predict error:', error);
-                alert('Error with quick prediction: ' + error.message);
+                showToast('Error', 'Error with quick prediction: ' + error.message, 'error');
+            }
+        }
+
+        async function calibrateModel() {
+            if (!currentStockSymbol) {
+                showToast('Error', 'Please select a stock first', 'error');
+                return;
+            }
+            
+            const calibrateBtn = document.getElementById('calibrateBtn');
+            const originalText = calibrateBtn.innerHTML;
+            
+            calibrateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Calibrating...';
+            calibrateBtn.disabled = true;
+            
+            try {
+                const days = document.getElementById('predictionDays').value;
+                const response = await fetch('/api/calibrate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        symbol: currentStockSymbol, 
+                        days_ahead: parseInt(days) 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showToast('Success', `Calibration completed! Accuracy: ${data.accuracy_score.toFixed(2)}%`, 'success');
+                    
+                    // Re-run prediction with calibrated model
+                    setTimeout(() => {
+                        handlePredictionSubmit();
+                    }, 1000);
+                } else {
+                    throw new Error(data.error || 'Calibration failed');
+                }
+                
+            } catch (error) {
+                console.error('Calibration error:', error);
+                showToast('Error', error.message, 'error');
+            } finally {
+                calibrateBtn.innerHTML = originalText;
+                calibrateBtn.disabled = false;
+            }
+        }
+
+        // Chart Control Functions
+        function resetChartZoom() {
+            if (technicalChart) {
+                technicalChart.resetZoom();
+            }
+        }
+
+        function zoomIn() {
+            if (technicalChart) {
+                technicalChart.zoom(1.1);
+            }
+        }
+
+        function zoomOut() {
+            if (technicalChart) {
+                technicalChart.zoom(0.9);
             }
         }
 
@@ -1567,7 +1512,7 @@
             const messagesContainer = document.getElementById('aiChatMessages');
             const typingDiv = document.createElement('div');
             typingDiv.className = 'message ai typing';
-            typingDiv.innerHTML = '<em>AI is typing...</em>';
+            typingDiv.innerHTML = '<em>AI is searching and analyzing...</em>';
             messagesContainer.appendChild(typingDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
             
@@ -1594,7 +1539,7 @@
                 
             } catch (error) {
                 typingDiv.remove();
-                addChatMessage('Sorry, I encountered an error. Please try again.', 'ai');
+                addChatMessage('Sorry, I encountered an error while searching for information. Please try again.', 'ai');
                 console.error('AI Chat error:', error);
             }
         });
@@ -1619,14 +1564,170 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        // Utility Functions
-        function showLoading(message) {
-            console.log('Loading:', message);
-            // You can implement a loading overlay here if needed
+        // UI Helper Functions
+        function updateEnhancedRecommendation(recommendation) {
+            const container = document.getElementById('enhancedRecommendation');
+            if (!container || !recommendation) return;
+            
+            container.innerHTML = `
+                <div class="mb-3">
+                    <span class="badge ${getRecommendationClass(recommendation.action)} mb-2">
+                        ${recommendation.action}
+                    </span>
+                    <div class="small"><strong>Strength:</strong> ${recommendation.strength}</div>
+                </div>
+                <div class="mb-3">
+                    <strong>Analysis:</strong>
+                    <ul class="mt-2 mb-0">
+                        ${recommendation.reasoning.map(reason => `<li><small>${reason}</small></li>`).join('')}
+                    </ul>
+                </div>
+                ${recommendation.risk_level ? `
+                    <div class="small">
+                        <strong>Risk Level:</strong> 
+                        <span class="badge bg-${getRiskLevelClass(recommendation.risk_level)}">${recommendation.risk_level}</span>
+                    </div>
+                ` : ''}
+            `;
         }
 
-        function hideLoading() {
-            console.log('Loading complete');
+        function updateAIAnalysis(analysis) {
+            const container = document.getElementById('aiAnalysis');
+            if (!container || !analysis) return;
+            
+            container.innerHTML = `
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <strong>Trend:</strong> ${analysis.trend}
+                    </div>
+                    <div class="col-6">
+                        <strong>Strength:</strong> ${analysis.strength}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <strong>Key Factors:</strong>
+                    <ul class="mt-2 mb-3">
+                        ${analysis.key_factors.map(factor => `<li><small>${factor}</small></li>`).join('')}
+                    </ul>
+                </div>
+                <div class="row small">
+                    <div class="col-6">
+                        <strong>Model:</strong> ${analysis.model_used}
+                    </div>
+                    <div class="col-6">
+                        <strong>Data Quality:</strong> ${analysis.data_quality}
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateSentimentAnalysis(sentiment) {
+            const container = document.getElementById('sentimentAnalysis');
+            if (!container || !sentiment) return;
+            
+            const sentimentClass = sentiment.overall_sentiment.toLowerCase() === 'positive' ? 'text-success' :
+                                  sentiment.overall_sentiment.toLowerCase() === 'negative' ? 'text-danger' : 'text-warning';
+            
+            container.innerHTML = `
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="text-center">
+                            <div class="h4 ${sentimentClass}">${sentiment.overall_sentiment}</div>
+                            <div class="small">Overall Sentiment</div>
+                            <div class="small text-muted">Score: ${sentiment.sentiment_score}</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="small mb-2">
+                            <strong>News:</strong> ${sentiment.news_sentiment}<br>
+                            <strong>Social:</strong> ${sentiment.social_sentiment}
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <strong>Key Themes:</strong>
+                    <div class="mt-2">
+                        ${sentiment.key_themes.map(theme => 
+                            `<span class="badge bg-secondary me-1 mb-1">${theme}</span>`
+                        ).join('')}
+                    </div>
+                </div>
+                <div class="small text-muted">
+                    <strong>Sources:</strong> ${sentiment.sentiment_sources.join(', ')}
+                </div>
+            `;
+        }
+
+        function getRecommendationClass(recommendation) {
+            const rec = recommendation.toLowerCase();
+            if (rec.includes('buy')) return 'bg-success';
+            if (rec.includes('sell')) return 'bg-danger';
+            if (rec.includes('hold')) return 'bg-warning';
+            return 'bg-secondary';
+        }
+
+        function getRiskLevelClass(riskLevel) {
+            const risk = riskLevel.toLowerCase();
+            if (risk === 'high') return 'danger';
+            if (risk === 'medium') return 'warning';
+            if (risk === 'low') return 'success';
+            return 'secondary';
+        }
+
+        function showToast(title, message, type = 'info') {
+            const toast = document.getElementById('notificationToast');
+            const toastTitle = document.getElementById('toastTitle');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            if (!toast) return;
+            
+            toastTitle.textContent = title;
+            toastMessage.textContent = message;
+            
+            // Reset classes
+            toast.className = 'toast';
+            
+            // Add type-specific classes
+            if (type === 'success') {
+                toast.classList.add('bg-success', 'text-white');
+            } else if (type === 'error') {
+                toast.classList.add('bg-danger', 'text-white');
+            } else if (type === 'warning') {
+                toast.classList.add('bg-warning', 'text-dark');
+            } else {
+                toast.classList.add('bg-info', 'text-white');
+            }
+            
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+
+        function updateChartsForTheme() {
+            if (predictionChart) {
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const textColor = isDark ? '#ffffff' : '#212529';
+                const gridColor = isDark ? '#404040' : '#dee2e6';
+                
+                predictionChart.options.plugins.legend.labels.color = textColor;
+                predictionChart.options.scales.x.ticks.color = textColor;
+                predictionChart.options.scales.x.grid.color = gridColor;
+                predictionChart.options.scales.y.ticks.color = textColor;
+                predictionChart.options.scales.y.grid.color = gridColor;
+                predictionChart.update();
+            }
+            
+            if (technicalChart) {
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                const textColor = isDark ? '#ffffff' : '#212529';
+                const gridColor = isDark ? '#404040' : '#dee2e6';
+                
+                technicalChart.options.plugins.legend.labels.color = textColor;
+                technicalChart.options.scales.x.ticks.color = textColor;
+                technicalChart.options.scales.x.grid.color = gridColor;
+                technicalChart.options.scales.y.ticks.color = textColor;
+                technicalChart.options.scales.y.grid.color = gridColor;
+                technicalChart.update();
+            }
         }
 
         // Logout function
@@ -1646,7 +1747,6 @@
                 }
             } catch (error) {
                 console.error('Logout failed:', error);
-                // Still redirect on error
                 window.location.href = '/';
             }
         }

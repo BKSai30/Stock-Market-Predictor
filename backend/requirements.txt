@@ -1,6 +1,7 @@
 # Flask and Web Framework
 Flask==3.0.3
 Flask-CORS==4.0.1
+Flask-SocketIO
 Werkzeug==3.0.3
 gunicorn==22.0.0
 
@@ -9,18 +10,17 @@ pandas>=2.1.0
 numpy>=1.26.0
 scikit-learn>=1.4.0
 xgboost>=2.0.0
+tensorflow>=2.15.0
 
 # Stock Data and Financial APIs
 yfinance>=0.2.25
-# alpha-vantage==2.3.1  # Keep if needed
-# nsepy==0.8            # Remove - not maintained
-# investpy==1.0.8       # Remove - deprecated
+requests>=2.31.0
+beautifulsoup4>=4.12.0
 
 # News and Sentiment Analysis
 newsapi-python>=0.2.7
 textblob>=0.18.0
 vaderSentiment>=3.3.2
-# Skip transformers and torch for now - too heavy for Python 3.13
 
 # Chart and Visualization Libraries
 matplotlib>=3.8.0
@@ -28,32 +28,36 @@ plotly>=5.17.0
 mplfinance
 seaborn>=0.13.0
 
-# Technical Analysis (Replace TA-Lib with pandas-ta)
-pandas-ta==0.3.14b0
+# Technical Analysis
+pandas-ta>=0.3.14b
 
 # Web Scraping and HTTP
-requests>=2.31.0
-beautifulsoup4>=4.12.0
 selenium>=4.15.0
+lxml>=4.9.3
 
 # Database and Caching
 redis>=5.0.0
 SQLAlchemy>=2.0.23
 Flask-SQLAlchemy>=3.1.0
 
+# Real-time and Background Tasks
+APScheduler>=3.10.4
+celery>=5.3.0
+
 # Utilities
 python-dateutil>=2.8.2
 python-dotenv>=1.0.0
-schedule>=1.2.0
-APScheduler>=3.10.4
 pytz>=2024.1
+websocket-client>=1.7.0
 
-# Development and Testing (Optional)
+# Development and Testing
 pytest>=7.4.0
-pytest-flask>=1.3.0
 black>=23.12.0
-flake8>=7.0.0
 
 # Data Processing
 openpyxl>=3.1.2
 xlrd>=2.0.1
+
+# Real-time market data
+alpha-vantage>=2.3.1
+finnhub-python>=2.4.19

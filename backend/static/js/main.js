@@ -1,20 +1,33 @@
-// Main JavaScript file for Stock Market Predictor
-// Global variables
+// Enhanced Real-time JavaScript for Stock Market Predictor
+// Global variables for real-time updates
+let realtimeInterval;
 let predictionChart = null;
 let technicalChart = null;
 let heroChart = null;
+let currentSymbols = new Set();
+let lastUpdateTime = null;
+let isMarketOpen = false;
 
-// Initialize the application
+// Initialize the enhanced application
 function initializeApp() {
+    console.log('Initializing enhanced stock market predictor...');
+    
     initializeTheme();
     initializeHeroChart();
+    startRealtimeUpdates();
     loadMarketIndices();
     loadTopStocks('safe', 5);
     setupEventListeners();
     checkPredictStock();
+    setupRealtimePortfolioUpdates();
+    
+    // Show market status
+    updateMarketStatus();
+    
+    console.log('Enhanced application initialized successfully');
 }
 
-// Theme Management
+// Theme Management (enhanced)
 function initializeTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
     const themeIcon = document.getElementById('themeIcon');
@@ -38,143 +51,249 @@ function toggleTheme() {
         localStorage.setItem('theme', 'light');
     }
     
-    // Update charts if they exist
     updateChartsForTheme();
 }
 
-// Setup Event Listeners
-function setupEventListeners() {
-    // Prediction form
-    const predictionForm = document.getElementById('predictionForm');
-    if (predictionForm) {
-        predictionForm.addEventListener('submit', handlePredictionSubmit);
+// Real-time Updates System
+function startRealtimeUpdates() {
+    console.log('Starting real-time update system...');
+    
+    // Update every 60 seconds during market hours, every 5 minutes when closed
+    const updateInterval = isMarketOpen ? 60000 : 300000; // 1 min or 5 min
+    
+    if (realtimeInterval) {
+        clearInterval(realtimeInterval);
     }
     
-    // Search stock button
-    const searchStockBtn = document.getElementById('searchStockBtn');
-    if (searchStockBtn) {
-        searchStockBtn.addEventListener('click', searchStock);
-    }
+    realtimeInterval = setInterval(() => {
+        updateRealtimePrices();
+        updateMarketIndices();
+        updatePortfolioValues();
+    }, updateInterval);
     
-    // Quick stock buttons
-    document.querySelectorAll('.quick-stock-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            selectQuickStock(this.dataset.symbol);
-        });
-    });
+    // Initial update
+    updateRealtimePrices();
+}
+
+async function updateRealtimePrices() {
+    if (currentSymbols.size === 0) return;
     
-    // Volatility buttons
-    document.querySelectorAll('.volatility-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            selectVolatilityCategory(this.dataset.category);
-        });
-    });
-    
-    // Chart type selector
-    const chartTypeSelect = document.getElementById('chartTypeSelect');
-    if (chartTypeSelect) {
-        chartTypeSelect.addEventListener('change', function() {
-            updateTechnicalChart(this.value);
-        });
-    }
-    
-    // Calibrate button
-    const calibrateBtn = document.getElementById('calibrateBtn');
-    if (calibrateBtn) {
-        calibrateBtn.addEventListener('click', calibrateModel);
+    try {
+        const symbolsArray = Array.from(currentSymbols);
+        const response = await fetch('/api/real-time-prices?' + new URLSearchParams({
+            symbols: symbolsArray.join(',')
+        }));
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.prices) {
+            updatePriceDisplays(data.prices);
+            isMarketOpen = data.market_open;
+            lastUpdateTime = new Date(data.timestamp);
+            
+            // Update market status indicator
+            updateMarketStatus();
+            
+            // Show real-time indicator
+            showRealtimeIndicator();
+        }
+        
+    } catch (error) {
+        console.error('Error updating real-time prices:', error);
+        showRealtimeError();
     }
 }
 
-// Check if there's a stock to predict from localStorage
-function checkPredictStock() {
-    const stockToPredict = localStorage.getItem('predictStock');
-    if (stockToPredict) {
-        document.getElementById('stockInput').value = stockToPredict;
-        localStorage.removeItem('predictStock');
-        // Auto-submit prediction form
-        setTimeout(() => {
-            handlePredictionSubmit(null, stockToPredict);
-        }, 500);
-    }
-}
-
-// Market Indices
-async function loadMarketIndices() {
-    const indices = [
-        { name: 'Nifty 50', value: '19,674.35', change: '+0.64%', positive: true },
-        { name: 'Sensex', value: '65,835.64', change: '+0.60%', positive: true },
-        { name: 'Bank Nifty', value: '44,239.80', change: '-0.32%', positive: false },
-        { name: 'IT Index', value: '31,847.25', change: '+2.11%', positive: true }
-    ];
-    
-    const container = document.getElementById('marketIndices');
-    if (container) {
-        container.innerHTML = indices.map(index => `
-            <div class="col-md-3 mb-3">
-                <div class="text-center">
-                    <h5 class="mb-1">${index.value}</h5>
-                    <div class="small text-muted">${index.name}</div>
-                    <div class="small ${index.positive ? 'text-success' : 'text-danger'}">
-                        <i class="fas fa-arrow-${index.positive ? 'up' : 'down'} me-1"></i>
-                        ${index.change}
-                    </div>
-                </div>
-            </div>
-        `).join('');
-    }
-}
-
-// Hero Chart
-function initializeHeroChart() {
-    const ctx = document.getElementById('heroChart');
-    if (!ctx) return;
-    
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    
-    heroChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: Array.from({length: 30}, (_, i) => {
-                const date = new Date();
-                date.setDate(date.getDate() - 29 + i);
-                return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-            }),
-            datasets: [{
-                label: 'Market Trend',
-                data: generateSampleData(30, 19000, 20000),
-                borderColor: 'rgba(255, 255, 255, 0.8)',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                x: { display: false },
-                y: { display: false }
-            }
+function updatePriceDisplays(prices) {
+    // Update prices throughout the interface
+    Object.keys(prices).forEach(symbol => {
+        const priceData = prices[symbol];
+        if (priceData.price) {
+            updatePriceElements(symbol, priceData.price, priceData.is_real);
         }
     });
 }
 
-// Stock Prediction Functions
+function updatePriceElements(symbol, price, isReal) {
+    // Update all elements showing this symbol's price
+    const priceElements = document.querySelectorAll(`[data-symbol="${symbol}"]`);
+    
+    priceElements.forEach(element => {
+        const formattedPrice = `₹${parseFloat(price).toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
+        
+        element.textContent = formattedPrice;
+        
+        // Add real-time indicator
+        element.classList.toggle('real-price', isReal);
+        element.classList.toggle('cached-price', !isReal);
+        
+        // Animate price change
+        element.classList.add('price-updated');
+        setTimeout(() => element.classList.remove('price-updated'), 1000);
+    });
+}
+
+async function updateMarketIndices() {
+    try {
+        const response = await fetch('/api/market-indices');
+        const data = await response.json();
+        
+        if (data.indices) {
+            displayMarketIndices(data.indices);
+            isMarketOpen = data.market_open;
+        }
+        
+    } catch (error) {
+        console.error('Error updating market indices:', error);
+    }
+}
+
+function displayMarketIndices(indices) {
+    const container = document.getElementById('marketIndices');
+    if (!container) return;
+    
+    const indicesHTML = Object.keys(indices).map(name => {
+        const index = indices[name];
+        const displayName = name.replace('_', ' ').replace('NIFTY', 'Nifty').replace('SENSEX', 'Sensex');
+        const changeClass = index.change >= 0 ? 'text-success' : 'text-danger';
+        const changeIcon = index.change >= 0 ? 'up' : 'down';
+        
+        return `
+            <div class="col-md-3 mb-3">
+                <div class="text-center market-index" data-symbol="${name}">
+                    <h5 class="mb-1" data-symbol="${name}">${index.current_price.toLocaleString('en-IN')}</h5>
+                    <div class="small text-muted">${displayName}</div>
+                    <div class="small ${changeClass}">
+                        <i class="fas fa-arrow-${changeIcon} me-1"></i>
+                        ${index.change >= 0 ? '+' : ''}${index.change.toFixed(2)} (${index.change_pct >= 0 ? '+' : ''}${index.change_pct.toFixed(2)}%)
+                    </div>
+                    <small class="text-muted d-block">
+                        ${new Date(index.timestamp).toLocaleTimeString('en-IN')}
+                    </small>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = indicesHTML;
+}
+
+function updateMarketStatus() {
+    const statusElements = document.querySelectorAll('.market-status');
+    const statusText = isMarketOpen ? 'Market Open' : 'Market Closed';
+    const statusClass = isMarketOpen ? 'text-success' : 'text-danger';
+    
+    statusElements.forEach(element => {
+        element.textContent = statusText;
+        element.className = `market-status ${statusClass}`;
+    });
+    
+    // Update page title with market status
+    const titleElement = document.querySelector('title');
+    if (titleElement && !titleElement.textContent.includes('●')) {
+        const indicator = isMarketOpen ? '🟢' : '🔴';
+        titleElement.textContent = `${indicator} ${titleElement.textContent}`;
+    }
+}
+
+function showRealtimeIndicator() {
+    // Show a subtle indicator that prices are updating
+    const indicator = document.getElementById('realtimeIndicator');
+    if (!indicator) {
+        const div = document.createElement('div');
+        div.id = 'realtimeIndicator';
+        div.className = 'realtime-indicator';
+        div.innerHTML = `
+            <i class="fas fa-circle text-success pulse"></i>
+            <span class="ms-2">Live</span>
+        `;
+        document.body.appendChild(div);
+    }
+    
+    const timeString = lastUpdateTime ? lastUpdateTime.toLocaleTimeString('en-IN') : 'Now';
+    indicator.title = `Last updated: ${timeString}`;
+}
+
+function showRealtimeError() {
+    const indicator = document.getElementById('realtimeIndicator');
+    if (indicator) {
+        indicator.innerHTML = `
+            <i class="fas fa-exclamation-triangle text-warning"></i>
+            <span class="ms-2">Connection Issue</span>
+        `;
+    }
+}
+
+// Enhanced Portfolio Updates
+function setupRealtimePortfolioUpdates() {
+    // Get portfolio symbols and add to real-time tracking
+    const portfolioSymbols = document.querySelectorAll('[data-portfolio-symbol]');
+    portfolioSymbols.forEach(element => {
+        const symbol = element.getAttribute('data-portfolio-symbol');
+        if (symbol) {
+            currentSymbols.add(symbol);
+        }
+    });
+}
+
+async function updatePortfolioValues() {
+    try {
+        const response = await fetch('/api/portfolio/get');
+        const data = await response.json();
+        
+        if (data.portfolio) {
+            updatePortfolioDisplay(data.portfolio, data.summary);
+        }
+        
+    } catch (error) {
+        console.error('Error updating portfolio values:', error);
+    }
+}
+
+function updatePortfolioDisplay(portfolio, summary) {
+    // Update portfolio summary with real-time values
+    if (summary) {
+        const totalInvested = document.getElementById('totalInvested');
+        const currentValue = document.getElementById('currentValue');
+        const totalProfitLoss = document.getElementById('totalProfitLoss');
+        const totalProfitLossPct = document.getElementById('totalProfitLossPct');
+        
+        if (totalInvested) totalInvested.textContent = `₹${summary.total_invested.toLocaleString()}`;
+        if (currentValue) currentValue.textContent = `₹${summary.total_current_value.toLocaleString()}`;
+        
+        if (totalProfitLoss) {
+            totalProfitLoss.textContent = `₹${Math.abs(summary.total_profit_loss).toLocaleString()}`;
+            totalProfitLoss.className = summary.total_profit_loss >= 0 ? 'summary-value profit' : 'summary-value loss';
+        }
+        
+        if (totalProfitLossPct) {
+            totalProfitLossPct.textContent = `${summary.total_profit_loss_pct >= 0 ? '+' : ''}${summary.total_profit_loss_pct.toFixed(2)}%`;
+            totalProfitLossPct.className = summary.total_profit_loss_pct >= 0 ? 'summary-value profit' : 'summary-value loss';
+        }
+    }
+}
+
+// Enhanced Prediction with Real-time Data
 async function handlePredictionSubmit(event, stockSymbol = null) {
     if (event) event.preventDefault();
     
     const symbol = stockSymbol || document.getElementById('stockInput').value.trim();
-    const days = document.getElementById('predictionDays').value;
+    const days = document.getElementById('daysAhead') ? document.getElementById('daysAhead').value : '5';
     
     if (!symbol) {
-        showToast('Error', 'Please enter a stock symbol', 'error');
+        showAdvancedToast('Error', 'Please enter a stock symbol', 'error');
         return;
     }
+    
+    // Add symbol to real-time tracking
+    currentSymbols.add(symbol.toUpperCase());
     
     showPredictionLoading(true);
     
@@ -182,103 +301,147 @@ async function handlePredictionSubmit(event, stockSymbol = null) {
         const response = await fetch('/api/predict', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol: symbol, days_ahead: parseInt(days) })
+            body: JSON.stringify({ 
+                symbol: symbol, 
+                days_ahead: parseInt(days) 
+            })
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
         const data = await response.json();
         
-        if (response.ok) {
-            displayPredictionResults(data);
-            updateTechnicalChart('candlestick', data.symbol);
-        } else {
-            throw new Error(data.error || 'Prediction failed');
+        if (data.error) {
+            throw new Error(data.error);
         }
+        
+        displayEnhancedPredictionResults(data);
+        updateTechnicalChart('candlestick', data.symbol);
+        
+        // Show success message with market status
+        const marketMsg = data.market_open ? 'using live market data' : 'using last available prices';
+        showAdvancedToast('Prediction Complete', `Analysis completed ${marketMsg}`, 'success');
         
     } catch (error) {
         console.error('Prediction error:', error);
-        showToast('Error', error.message, 'error');
+        showAdvancedToast('Prediction Failed', error.message, 'error');
         showPredictionInitial();
     } finally {
         showPredictionLoading(false);
     }
 }
 
-function showPredictionLoading(show) {
-    const elements = {
-        loading: document.getElementById('predictionLoading'),
-        initial: document.getElementById('predictionInitial'),
-        results: document.getElementById('predictionResults')
-    };
-    
-    if (show) {
-        elements.loading.style.display = 'block';
-        elements.initial.style.display = 'none';
-        elements.results.classList.add('d-none');
-    } else {
-        elements.loading.style.display = 'none';
-    }
-}
-
-function showPredictionInitial() {
-    const elements = {
-        loading: document.getElementById('predictionLoading'),
-        initial: document.getElementById('predictionInitial'),
-        results: document.getElementById('predictionResults')
-    };
-    
-    elements.loading.style.display = 'none';
-    elements.initial.style.display = 'block';
-    elements.results.classList.add('d-none');
-}
-
-function displayPredictionResults(data) {
-    // Hide loading and initial states
+function displayEnhancedPredictionResults(data) {
+    // Hide loading and show results
     document.getElementById('predictionLoading').style.display = 'none';
     document.getElementById('predictionInitial').style.display = 'none';
     document.getElementById('predictionResults').classList.remove('d-none');
     
-    // Update basic info
-    document.getElementById('stockName').textContent = `${data.symbol} - ${data.name}`;
-    document.getElementById('currentPrice').textContent = `₹${data.current_price}`;
-    document.getElementById('predictedPrice').textContent = `₹${data.predicted_price}`;
-    document.getElementById('predictionPeriodLabel').textContent = `(${data.days_ahead}-day)`;
+    // Update basic info with real-time indicator
+    const stockNameElement = document.getElementById('stockName');
+    const currentPriceElement = document.getElementById('currentPrice');
+    const predictedPriceElement = document.getElementById('predictedPrice');
     
-    // Update price change
+    if (stockNameElement) {
+        stockNameElement.textContent = `${data.symbol} - ${data.name}`;
+    }
+    
+    if (currentPriceElement) {
+        currentPriceElement.textContent = `₹${data.current_price.toLocaleString()}`;
+        currentPriceElement.setAttribute('data-symbol', data.symbol);
+        currentPriceElement.classList.add(data.is_real_price ? 'real-price' : 'cached-price');
+    }
+    
+    if (predictedPriceElement) {
+        predictedPriceElement.textContent = `₹${data.predicted_price.toLocaleString()}`;
+    }
+    
+    // Update prediction period label
+    const periodLabel = document.getElementById('predictionPeriodLabel');
+    if (periodLabel) {
+        periodLabel.textContent = `(${data.days_ahead}-day prediction)`;
+    }
+    
+    // Update price change with enhanced styling
     const priceChange = data.predicted_price - data.current_price;
     const priceChangeElement = document.getElementById('priceChange');
-    const changeClass = priceChange >= 0 ? 'profit' : 'loss';
-    const changeIcon = priceChange >= 0 ? 'up' : 'down';
+    if (priceChangeElement) {
+        const changeClass = priceChange >= 0 ? 'profit' : 'loss';
+        const changeIcon = priceChange >= 0 ? 'up' : 'down';
+        
+        priceChangeElement.textContent = `${priceChange >= 0 ? '+' : ''}₹${Math.abs(priceChange).toLocaleString()} (${data.price_change_pct >= 0 ? '+' : ''}${data.price_change_pct.toFixed(2)}%)`;
+        priceChangeElement.className = `price-change ${changeClass}`;
+        priceChangeElement.innerHTML = `
+            <i class="fas fa-arrow-${changeIcon} me-1"></i>
+            ${priceChangeElement.textContent}
+        `;
+    }
     
-    priceChangeElement.textContent = `${priceChange >= 0 ? '+' : ''}₹${Math.abs(priceChange).toFixed(2)} (${data.price_change_pct >= 0 ? '+' : ''}${data.price_change_pct}%)`;
-    priceChangeElement.className = `price-change ${changeClass}`;
-    
-    // Update confidence
+    // Update confidence with enhanced display
     const confidenceBar = document.getElementById('confidenceBar');
-    confidenceBar.style.width = `${data.confidence}%`;
-    confidenceBar.textContent = `${data.confidence}%`;
+    const confidenceText = document.getElementById('confidenceText');
+    if (confidenceBar && confidenceText) {
+        confidenceBar.style.width = `${data.confidence}%`;
+        confidenceBar.className = `progress-bar ${getConfidenceClass(data.confidence)}`;
+        confidenceText.textContent = `${data.confidence}%`;
+    }
     
-    // Update recommendation badge
+    // Update recommendation with enhanced badge
     const recommendationBadge = document.getElementById('recommendationBadge');
-    recommendationBadge.textContent = data.recommendation;
-    recommendationBadge.className = `badge ${getRecommendationClass(data.recommendation)}`;
+    if (recommendationBadge) {
+        recommendationBadge.textContent = data.recommendation;
+        recommendationBadge.className = `badge ${getRecommendationClass(data.recommendation)}`;
+    }
+    
+    // Update model accuracy display
+    const accuracyElement = document.getElementById('modelAccuracy');
+    if (accuracyElement) {
+        accuracyElement.textContent = `Model Accuracy: ${data.model_accuracy}%`;
+        accuracyElement.className = `small text-muted ${getAccuracyClass(data.model_accuracy)}`;
+    }
+    
+    // Update real-time status
+    const statusElement = document.getElementById('dataStatus');
+    if (statusElement) {
+        const statusText = data.is_real_price ? 'Real-time Data' : 'Last Available Price';
+        const statusIcon = data.is_real_price ? 'circle text-success pulse' : 'clock text-warning';
+        statusElement.innerHTML = `<i class="fas fa-${statusIcon} me-1"></i>${statusText}`;
+    }
+    
+    // Update enhanced prediction chart
+    updateEnhancedPredictionChart(data);
     
     // Show calibrate button
-    document.getElementById('calibrateBtn').style.display = 'inline-block';
-    
-    // Update prediction chart
-    updatePredictionChart(data);
-    
-    // Update enhanced recommendation
-    updateEnhancedRecommendation(data.enhanced_recommendation);
-    
-    // Update AI analysis
-    updateAIAnalysis(data.ai_analysis);
-    
-    // Update sentiment analysis
-    updateSentimentAnalysis(data.sentiment_analysis);
+    const calibrateBtn = document.getElementById('calibrateBtn');
+    if (calibrateBtn) {
+        calibrateBtn.style.display = 'inline-block';
+    }
 }
 
-function updatePredictionChart(data) {
+function getConfidenceClass(confidence) {
+    if (confidence >= 85) return 'bg-success';
+    if (confidence >= 70) return 'bg-warning';
+    return 'bg-danger';
+}
+
+function getRecommendationClass(recommendation) {
+    const rec = recommendation.toLowerCase();
+    if (rec.includes('strong buy')) return 'bg-success';
+    if (rec.includes('buy')) return 'bg-primary';
+    if (rec.includes('strong sell')) return 'bg-danger';
+    if (rec.includes('sell')) return 'bg-warning';
+    return 'bg-secondary';
+}
+
+function getAccuracyClass(accuracy) {
+    if (accuracy >= 85) return 'text-success';
+    if (accuracy >= 70) return 'text-warning';
+    return 'text-danger';
+}
+
+function updateEnhancedPredictionChart(data) {
     const ctx = document.getElementById('predictionChart');
     if (!ctx) return;
     
@@ -290,40 +453,48 @@ function updatePredictionChart(data) {
     const textColor = isDark ? '#ffffff' : '#212529';
     const gridColor = isDark ? '#404040' : '#dee2e6';
     
-    // Combine historical and prediction data
-    const allData = [...data.historical_data, ...data.prediction_data.slice(1)];
-    const labels = allData.map(item => item.date);
-    const prices = allData.map(item => item.price);
-    
-    // Split data for different styling
+    // Prepare chart data
+    const historicalLabels = data.historical_data.map(item => item.date);
     const historicalPrices = data.historical_data.map(item => item.price);
-    const predictionPrices = new Array(historicalPrices.length - 1).fill(null);
-    predictionPrices.push(data.current_price);
-    predictionPrices.push(...data.prediction_data.slice(1).map(item => item.price));
+    const predictionLabels = data.prediction_data.map(item => item.date);
+    const predictionPrices = data.prediction_data.map(item => item.price);
+    const confidenceValues = data.prediction_data.map(item => item.confidence || data.confidence);
+    
+    // Combine labels
+    const allLabels = [...historicalLabels, ...predictionLabels];
+    
+    // Prepare datasets
+    const historicalData = [...historicalPrices, ...new Array(predictionLabels.length).fill(null)];
+    const predictionData = [...new Array(historicalLabels.length - 1).fill(null), historicalPrices[historicalPrices.length - 1], ...predictionPrices];
     
     predictionChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: labels,
+            labels: allLabels,
             datasets: [
                 {
                     label: 'Historical Price',
-                    data: [...historicalPrices, ...new Array(data.prediction_data.length - 1).fill(null)],
+                    data: historicalData,
                     borderColor: '#667eea',
                     backgroundColor: 'rgba(102, 126, 234, 0.1)',
                     borderWidth: 2,
                     fill: false,
-                    tension: 0.1
+                    tension: 0.1,
+                    pointRadius: 2,
+                    pointHoverRadius: 4
                 },
                 {
                     label: 'Predicted Price',
-                    data: predictionPrices,
+                    data: predictionData,
                     borderColor: '#28a745',
                     backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    borderWidth: 2,
+                    borderWidth: 3,
                     borderDash: [5, 5],
                     fill: false,
-                    tension: 0.1
+                    tension: 0.1,
+                    pointRadius: 3,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#28a745'
                 }
             ]
         },
@@ -332,53 +503,193 @@ function updatePredictionChart(data) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    labels: { color: textColor }
+                    labels: { color: textColor },
+                    position: 'top'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        afterBody: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            if (dataIndex >= historicalLabels.length && confidenceValues[dataIndex - historicalLabels.length]) {
+                                return `Confidence: ${confidenceValues[dataIndex - historicalLabels.length].toFixed(1)}%`;
+                            }
+                            return '';
+                        }
+                    }
                 }
             },
             scales: {
                 x: {
                     ticks: { color: textColor },
-                    grid: { color: gridColor }
+                    grid: { color: gridColor },
+                    title: {
+                        display: true,
+                        text: 'Date',
+                        color: textColor
+                    }
                 },
                 y: {
                     ticks: { 
                         color: textColor,
                         callback: function(value) {
-                            return '₹' + value.toFixed(2);
+                            return '₹' + value.toLocaleString();
                         }
                     },
-                    grid: { color: gridColor }
+                    grid: { color: gridColor },
+                    title: {
+                        display: true,
+                        text: 'Price (₹)',
+                        color: textColor
+                    }
                 }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
             }
         }
     });
 }
 
-// Technical Analysis Functions
+// Enhanced Calibration
+async function calibrateModel() {
+    const stockInput = document.getElementById('stockInput');
+    const daysSelect = document.getElementById('daysAhead');
+    
+    if (!stockInput || !daysSelect) {
+        showAdvancedToast('Error', 'Please select a stock first', 'error');
+        return;
+    }
+    
+    const symbol = stockInput.value.trim();
+    const days = parseInt(daysSelect.value);
+    
+    if (!symbol) {
+        showAdvancedToast('Error', 'Please select a stock first', 'error');
+        return;
+    }
+    
+    const calibrateBtn = document.getElementById('calibrateBtn');
+    const originalText = calibrateBtn ? calibrateBtn.innerHTML : '';
+    
+    if (calibrateBtn) {
+        calibrateBtn.innerHTML = '<i class="fas fa-cog fa-spin me-2"></i>Calibrating Model...';
+        calibrateBtn.disabled = true;
+    }
+    
+    try {
+        showAdvancedToast('Calibration Started', 'Running backtests to improve accuracy...', 'info');
+        
+        const response = await fetch('/api/calibrate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol: symbol, days_ahead: days })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // Show detailed calibration results
+        showCalibrationResults(data);
+        
+        // Re-run prediction with calibrated model
+        setTimeout(() => {
+            handlePredictionSubmit(null, symbol);
+        }, 1500);
+        
+    } catch (error) {
+        console.error('Calibration error:', error);
+        showAdvancedToast('Calibration Failed', error.message, 'error');
+    } finally {
+        if (calibrateBtn) {
+            calibrateBtn.innerHTML = originalText;
+            calibrateBtn.disabled = false;
+        }
+    }
+}
+
+function showCalibrationResults(data) {
+    const accuracy = data.accuracy_score;
+    const testCount = data.test_count || 0;
+    
+    let accuracyLevel, accuracyColor;
+    if (accuracy >= 85) {
+        accuracyLevel = 'Excellent';
+        accuracyColor = 'success';
+    } else if (accuracy >= 75) {
+        accuracyLevel = 'Good';
+        accuracyColor = 'primary';
+    } else if (accuracy >= 65) {
+        accuracyLevel = 'Fair';
+        accuracyColor = 'warning';
+    } else {
+        accuracyLevel = 'Poor';
+        accuracyColor = 'danger';
+    }
+    
+    const message = `
+        <div class="calibration-result">
+            <h6>Calibration Complete!</h6>
+            <p><strong>Accuracy:</strong> <span class="badge bg-${accuracyColor}">${accuracy.toFixed(1)}% (${accuracyLevel})</span></p>
+            <p><strong>Tests Performed:</strong> ${testCount} backtests</p>
+            <p class="small text-muted">${data.message}</p>
+        </div>
+    `;
+    
+    showAdvancedToast('Calibration Results', message, accuracyColor, 8000);
+}
+
+// Enhanced Technical Analysis
 async function updateTechnicalChart(chartType, symbol = null) {
     const stockInput = document.getElementById('stockInput');
-    const currentSymbol = symbol || stockInput?.value.trim();
+    const currentSymbol = symbol || (stockInput ? stockInput.value.trim() : '');
     
     if (!currentSymbol) return;
     
+    // Add symbol to real-time tracking
+    currentSymbols.add(currentSymbol.toUpperCase());
+    
     try {
-        const response = await fetch(`/api/technical-chart/${currentSymbol}?type=${chartType}`);
+        const period = document.getElementById('chartPeriodSelect') ? 
+            document.getElementById('chartPeriodSelect').value : '3mo';
+        
+        const response = await fetch(`/api/technical-chart/${currentSymbol}?type=${chartType}&period=${period}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
-        if (response.ok && data.success) {
-            displayTechnicalChart(data, chartType);
-            displayChartPatterns(data.patterns);
+        if (data.success && data.data) {
+            displayEnhancedTechnicalChart(data, chartType);
             displayTechnicalIndicators(data.indicators);
+            
+            // Show technical charts section
+            const chartsSection = document.getElementById('technicalChartsSection');
+            if (chartsSection) {
+                chartsSection.style.display = 'block';
+            }
         } else {
-            console.error('Failed to load technical chart:', data.error);
+            throw new Error(data.error || 'Failed to load chart data');
         }
         
     } catch (error) {
         console.error('Technical chart error:', error);
+        showAdvancedToast('Chart Error', 'Failed to load technical chart', 'error');
     }
 }
 
-function displayTechnicalChart(data, chartType) {
+function displayEnhancedTechnicalChart(data, chartType) {
     const container = document.getElementById('technicalChart');
     if (!container) return;
     
@@ -396,52 +707,68 @@ function displayTechnicalChart(data, chartType) {
     const textColor = isDark ? '#ffffff' : '#212529';
     const gridColor = isDark ? '#404040' : '#dee2e6';
     
-    // Configure chart based on type
     let chartConfig = {
-        type: 'line',
+        type: chartType === 'candlestick' ? 'bar' : 'line',
         data: { labels: [], datasets: [] },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { color: textColor } }
+                legend: { 
+                    labels: { color: textColor },
+                    position: 'top'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
             },
             scales: {
                 x: {
                     ticks: { color: textColor },
-                    grid: { color: gridColor }
+                    grid: { color: gridColor },
+                    title: { display: true, text: 'Date', color: textColor }
                 },
                 y: {
                     ticks: { 
                         color: textColor,
                         callback: function(value) {
-                            return '₹' + value.toFixed(2);
+                            return '₹' + value.toLocaleString();
                         }
                     },
-                    grid: { color: gridColor }
+                    grid: { color: gridColor },
+                    title: { display: true, text: 'Price (₹)', color: textColor }
                 }
             }
         }
     };
     
-    if (chartType === 'candlestick') {
-        // For candlestick, we'll use a line chart as approximation
+    if (chartType === 'candlestick' && data.data[0] && data.data[0].open !== undefined) {
+        // Professional candlestick chart
+        const candlestickData = data.data;
+        const labels = candlestickData.map(item => item.date);
+        const ohlcData = candlestickData.map(item => ({
+            x: item.date,
+            o: item.open,
+            h: item.high,
+            l: item.low,
+            c: item.close
+        }));
+        
+        chartConfig.type = 'candlestick';
         chartConfig.data = {
-            labels: data.data.map(item => item.date),
             datasets: [{
-                label: `${data.symbol} Price`,
-                data: data.data.map(item => item.close),
-                borderColor: '#667eea',
-                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                borderWidth: 2,
-                fill: false,
-                tension: 0.1
+                label: `${data.symbol} Candlestick`,
+                data: ohlcData,
+                backgroundColors: candlestickData.map(item => item.color || (item.close >= item.open ? '#00ff88' : '#ff4444')),
+                borderColors: candlestickData.map(item => item.close >= item.open ? '#00bb44' : '#bb0000'),
+                borderWidth: 1
             }]
         };
     } else {
-        // Handle other chart types similarly
+        // Line chart for other types
         chartConfig.data = {
-            labels: data.data.map(item => item.date || new Date().toISOString().split('T')[0]),
+            labels: data.data.map(item => item.date),
             datasets: [{
                 label: `${data.symbol} - ${chartType.charAt(0).toUpperCase() + chartType.slice(1)}`,
                 data: data.data.map(item => item.price || item.close || 0),
@@ -449,29 +776,42 @@ function displayTechnicalChart(data, chartType) {
                 backgroundColor: 'rgba(102, 126, 234, 0.1)',
                 borderWidth: 2,
                 fill: false,
-                tension: 0.1
+                tension: 0.1,
+                pointRadius: 1,
+                pointHoverRadius: 4
             }]
+        };
+    }
+    
+    // Add volume dataset if available
+    if (data.data[0] && data.data[0].volume !== undefined) {
+        chartConfig.data.datasets.push({
+            label: 'Volume',
+            data: data.data.map(item => item.volume),
+            type: 'bar',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 1,
+            yAxisID: 'y1'
+        });
+        
+        // Add second y-axis for volume
+        chartConfig.options.scales.y1 = {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            ticks: { color: textColor },
+            grid: { drawOnChartArea: false },
+            title: { display: true, text: 'Volume', color: textColor }
         };
     }
     
     technicalChart = new Chart(ctx, chartConfig);
     
-    // Show chart pattern analysis
-    document.getElementById('chartPatternAnalysis').style.display = 'block';
-}
-
-function displayChartPatterns(patterns) {
-    const container = document.getElementById('candlestickPatterns');
-    if (!container) return;
-    
-    if (patterns && patterns.detected_patterns && patterns.detected_patterns.length > 0) {
-        container.innerHTML = patterns.detected_patterns.map(pattern => 
-            `<div class="mb-2">
-                <span class="badge bg-primary">${pattern}</span>
-            </div>`
-        ).join('');
-    } else {
-        container.innerHTML = '<small class="text-muted">No significant patterns detected</small>';
+    // Update chart type indicator
+    const indicator = document.getElementById('chartTypeIndicator');
+    if (indicator) {
+        indicator.textContent = chartType.charAt(0).toUpperCase() + chartType.slice(1);
     }
 }
 
@@ -480,370 +820,249 @@ function displayTechnicalIndicators(indicators) {
     if (!container) return;
     
     const indicatorsList = [
-        { key: 'rsi', label: 'RSI (14)', tooltip: 'Relative Strength Index - measures overbought/oversold conditions. Values above 70 suggest overbought, below 30 suggest oversold.' },
-        { key: 'macd', label: 'MACD', tooltip: 'Moving Average Convergence Divergence - trend-following momentum indicator. Positive values suggest bullish momentum.' },
-        { key: 'sma_20', label: 'SMA (20)', tooltip: 'Simple Moving Average (20 days) - average price over last 20 days. Price above SMA suggests uptrend.' },
-        { key: 'bb_upper', label: 'BB Upper', tooltip: 'Bollinger Bands Upper - price touching upper band may indicate overbought condition.' },
-        { key: 'bb_lower', label: 'BB Lower', tooltip: 'Bollinger Bands Lower - price touching lower band may indicate oversold condition.' }
+        { key: 'rsi', label: 'RSI (14)', format: 'number', range: [30, 70] },
+        { key: 'macd', label: 'MACD', format: 'number', range: null },
+        { key: 'sma_20', label: 'SMA (20)', format: 'currency', range: null },
+        { key: 'sma_50', label: 'SMA (50)', format: 'currency', range: null },
+        { key: 'bb_upper', label: 'BB Upper', format: 'currency', range: null },
+        { key: 'bb_lower', label: 'BB Lower', format: 'currency', range: null }
     ];
     
     container.innerHTML = indicatorsList.map(indicator => {
         const value = indicators[indicator.key];
-        const displayValue = value !== null && value !== undefined ? 
-            (typeof value === 'number' ? value.toFixed(2) : value) : 'N/A';
+        let displayValue = 'N/A';
+        let statusClass = '';
+        let statusText = '';
+        
+        if (value !== null && value !== undefined) {
+            if (indicator.format === 'currency') {
+                displayValue = `₹${parseFloat(value).toLocaleString()}`;
+            } else {
+                displayValue = parseFloat(value).toFixed(2);
+            }
+            
+            // Add status indication for RSI
+            if (indicator.key === 'rsi') {
+                if (value > 70) {
+                    statusClass = 'text-danger';
+                    statusText = 'Overbought';
+                } else if (value < 30) {
+                    statusClass = 'text-success';
+                    statusText = 'Oversold';
+                } else {
+                    statusClass = 'text-warning';
+                    statusText = 'Neutral';
+                }
+            }
+        }
         
         return `
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <span>${indicator.label}
-                    <i class="fas fa-info-circle info-tooltip ms-1">
-                        <div class="tooltip-content">${indicator.tooltip}</div>
-                    </i>
+                <span class="indicator-label">
+                    ${indicator.label}
+                    <i class="fas fa-info-circle text-muted ms-1" 
+                       title="Technical indicator value"></i>
                 </span>
-                <strong>${displayValue}</strong>
+                <div class="text-end">
+                    <strong class="${statusClass}">${displayValue}</strong>
+                    ${statusText ? `<br><small class="${statusClass}">${statusText}</small>` : ''}
+                </div>
             </div>
         `;
     }).join('');
 }
 
-// Top Stocks Functions
-async function loadTopStocks(category = 'safe', count = 5) {
-    try {
-        const response = await fetch(`/api/top-stocks?category=${category}&count=${count}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-            displayTopStocks(data.stocks);
-        } else {
-            throw new Error(data.error || 'Failed to load top stocks');
-        }
-        
-    } catch (error) {
-        console.error('Top stocks error:', error);
-        showToast('Error', 'Failed to load top stocks', 'error');
-    }
-}
-
-function displayTopStocks(stocks) {
-    const container = document.getElementById('topStocksList');
-    if (!container) return;
+// Enhanced Toast System
+function showAdvancedToast(title, message, type = 'info', duration = 5000) {
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
     
-    container.innerHTML = stocks.map(stock => {
-        const changeClass = stock.price_change >= 0 ? 'text-success' : 'text-danger';
-        const changeIcon = stock.price_change >= 0 ? 'up' : 'down';
-        
-        return `
-            <div class="d-flex justify-content-between align-items-center mb-3 p-2 rounded" 
-                 style="background: var(--bg-secondary); cursor: pointer;"
-                 onclick="selectStock('${stock.symbol}')">
-                <div>
-                    <strong>${stock.symbol}</strong>
-                    <div class="small text-muted">${stock.name}</div>
-                    <div class="small text-muted">${stock.sector}</div>
-                </div>
-                <div class="text-end">
-                    <div>₹${stock.current_price}</div>
-                    <div class="small ${changeClass}">
-                        <i class="fas fa-arrow-${changeIcon}"></i>
-                        ${stock.price_change >= 0 ? '+' : ''}${stock.price_change.toFixed(2)}%
+    const toastId = 'toast-' + Date.now();
+    const iconMap = {
+        success: 'check-circle',
+        error: 'exclamation-triangle',
+        warning: 'exclamation-triangle',
+        info: 'info-circle',
+        primary: 'info-circle'
+    };
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast align-items-center text-white bg-${type} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-${iconMap[type] || 'info-circle'} me-2"></i>
+                        <div>
+                            <strong>${title}</strong>
+                            <div class="toast-message">${message}</div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function selectStock(symbol) {
-    document.getElementById('stockInput').value = symbol;
-    handlePredictionSubmit(null, symbol);
-}
-
-// Helper Functions
-function selectQuickStock(symbol) {
-    // Update active state
-    document.querySelectorAll('.quick-stock-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    event.target.classList.add('active');
-    
-    // Set input and predict
-    document.getElementById('stockInput').value = symbol;
-    handlePredictionSubmit(null, symbol);
-}
-
-function selectVolatilityCategory(category) {
-    // Update active state
-    document.querySelectorAll('.volatility-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    event.target.classList.add('active');
-    
-    // Load stocks for category
-    const count = document.getElementById('stockCount')?.value || 5;
-    loadTopStocks(category, count);
-}
-
-async function searchStock() {
-    const symbol = document.getElementById('stockInput').value.trim();
-    if (!symbol) return;
-    
-    try {
-        const response = await fetch('/api/search-stock', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ input: symbol })
-        });
-        
-        const data = await response.json();
-        
-        if (data.found) {
-            showToast('Success', `Found: ${data.name} (${data.symbol})`, 'success');
-            document.getElementById('stockInput').value = data.symbol;
-        } else {
-            showToast('Info', data.message, 'info');
-        }
-        
-    } catch (error) {
-        console.error('Search error:', error);
-        showToast('Error', 'Search failed', 'error');
-    }
-}
-
-async function calibrateModel() {
-    const stockInput = document.getElementById('stockInput');
-    const daysSelect = document.getElementById('predictionDays');
-    
-    const symbol = stockInput.value.trim();
-    const days = parseInt(daysSelect.value);
-    
-    if (!symbol) {
-        showToast('Error', 'Please select a stock first', 'error');
-        return;
-    }
-    
-    const calibrateBtn = document.getElementById('calibrateBtn');
-    const originalText = calibrateBtn.innerHTML;
-    
-    calibrateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Calibrating...';
-    calibrateBtn.disabled = true;
-    
-    try {
-        const response = await fetch('/api/calibrate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ symbol: symbol, days_ahead: days })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            showToast('Success', `Calibration completed! Accuracy: ${data.accuracy_score.toFixed(2)}%`, 'success');
-            
-            // Re-run prediction with calibrated model
-            setTimeout(() => {
-                handlePredictionSubmit(null, symbol);
-            }, 1000);
-        } else {
-            throw new Error(data.error || 'Calibration failed');
-        }
-        
-    } catch (error) {
-        console.error('Calibration error:', error);
-        showToast('Error', error.message, 'error');
-    } finally {
-        calibrateBtn.innerHTML = originalText;
-        calibrateBtn.disabled = false;
-    }
-}
-
-// UI Helper Functions
-function updateEnhancedRecommendation(recommendation) {
-    const container = document.getElementById('enhancedRecommendation');
-    if (!container || !recommendation) return;
-    
-    container.innerHTML = `
-        <div class="mb-3">
-            <span class="badge ${getRecommendationClass(recommendation.action)} mb-2">
-                ${recommendation.action}
-            </span>
-            <div class="small"><strong>Strength:</strong> ${recommendation.strength}</div>
-        </div>
-        <div class="mb-3">
-            <strong>Analysis:</strong>
-            <ul class="mt-2 mb-0">
-                ${recommendation.reasoning.map(reason => `<li><small>${reason}</small></li>`).join('')}
-            </ul>
-        </div>
-        ${recommendation.risk_level ? `
-            <div class="small">
-                <strong>Risk Level:</strong> 
-                <span class="badge bg-${getRiskLevelClass(recommendation.risk_level)}">${recommendation.risk_level}</span>
-            </div>
-        ` : ''}
-    `;
-}
-
-function updateAIAnalysis(analysis) {
-    const container = document.getElementById('aiAnalysis');
-    if (!container || !analysis) return;
-    
-    container.innerHTML = `
-        <div class="row mb-3">
-            <div class="col-6">
-                <strong>Trend:</strong> ${analysis.trend}
-            </div>
-            <div class="col-6">
-                <strong>Strength:</strong> ${analysis.strength}
-            </div>
-        </div>
-        <div class="mb-3">
-            <strong>Key Factors:</strong>
-            <ul class="mt-2 mb-3">
-                ${analysis.key_factors.map(factor => `<li><small>${factor}</small></li>`).join('')}
-            </ul>
-        </div>
-        <div class="row small">
-            <div class="col-6">
-                <strong>Model:</strong> ${analysis.model_used}
-            </div>
-            <div class="col-6">
-                <strong>Data Quality:</strong> ${analysis.data_quality}
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
         </div>
     `;
-}
-
-function updateSentimentAnalysis(sentiment) {
-    const container = document.getElementById('sentimentAnalysis');
-    if (!container || !sentiment) return;
     
-    const sentimentClass = sentiment.overall_sentiment.toLowerCase() === 'positive' ? 'text-success' :
-                          sentiment.overall_sentiment.toLowerCase() === 'negative' ? 'text-danger' : 'text-warning';
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
     
-    container.innerHTML = `
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <div class="text-center">
-                    <div class="h4 ${sentimentClass}">${sentiment.overall_sentiment}</div>
-                    <div class="small">Overall Sentiment</div>
-                    <div class="small text-muted">Score: ${sentiment.sentiment_score}</div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="small mb-2">
-                    <strong>News:</strong> ${sentiment.news_sentiment}<br>
-                    <strong>Social:</strong> ${sentiment.social_sentiment}
-                </div>
-            </div>
-        </div>
-        <div class="mb-3">
-            <strong>Key Themes:</strong>
-            <div class="mt-2">
-                ${sentiment.key_themes.map(theme => 
-                    `<span class="badge bg-secondary me-1 mb-1">${theme}</span>`
-                ).join('')}
-            </div>
-        </div>
-        <div class="small text-muted">
-            <strong>Sources:</strong> ${sentiment.sentiment_sources.join(', ')}
-        </div>
-    `;
-}
-
-function getRecommendationClass(recommendation) {
-    const rec = recommendation.toLowerCase();
-    if (rec.includes('buy')) return 'bg-success';
-    if (rec.includes('sell')) return 'bg-danger';
-    if (rec.includes('hold')) return 'bg-warning';
-    return 'bg-secondary';
-}
-
-function getRiskLevelClass(riskLevel) {
-    const risk = riskLevel.toLowerCase();
-    if (risk === 'high') return 'danger';
-    if (risk === 'medium') return 'warning';
-    if (risk === 'low') return 'success';
-    return 'secondary';
-}
-
-function generateSampleData(count, min, max) {
-    const data = [];
-    let current = (min + max) / 2;
+    const toastElement = document.getElementById(toastId);
+    const bsToast = new bootstrap.Toast(toastElement, { delay: duration });
     
-    for (let i = 0; i < count; i++) {
-        const change = (Math.random() - 0.5) * (max - min) * 0.1;
-        current = Math.max(min, Math.min(max, current + change));
-        data.push(Math.round(current));
-    }
-    
-    return data;
-}
-
-function showToast(title, message, type = 'info') {
-    const toast = document.getElementById('notificationToast');
-    const toastTitle = document.getElementById('toastTitle');
-    const toastMessage = document.getElementById('toastMessage');
-    
-    if (!toast) return;
-    
-    toastTitle.textContent = title;
-    toastMessage.textContent = message;
-    
-    // Reset classes
-    toast.className = 'toast';
-    
-    // Add type-specific classes
-    if (type === 'success') {
-        toast.classList.add('bg-success', 'text-white');
-    } else if (type === 'error') {
-        toast.classList.add('bg-danger', 'text-white');
-    } else if (type === 'warning') {
-        toast.classList.add('bg-warning', 'text-dark');
-    } else {
-        toast.classList.add('bg-info', 'text-white');
-    }
-    
-    const bsToast = new bootstrap.Toast(toast);
     bsToast.show();
+    
+    // Auto-remove from DOM after hiding
+    toastElement.addEventListener('hidden.bs.toast', () => {
+        toastElement.remove();
+    });
 }
 
-function updateChartsForTheme() {
-    // Update existing charts for theme change
-    if (predictionChart) {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const textColor = isDark ? '#ffffff' : '#212529';
-        const gridColor = isDark ? '#404040' : '#dee2e6';
-        
-        predictionChart.options.plugins.legend.labels.color = textColor;
-        predictionChart.options.scales.x.ticks.color = textColor;
-        predictionChart.options.scales.x.grid.color = gridColor;
-        predictionChart.options.scales.y.ticks.color = textColor;
-        predictionChart.options.scales.y.grid.color = gridColor;
-        predictionChart.update();
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+
+// Utility Functions
+function addSymbolToTracking(symbol) {
+    currentSymbols.add(symbol.toUpperCase());
+}
+
+function removeSymbolFromTracking(symbol) {
+    currentSymbols.delete(symbol.toUpperCase());
+}
+
+function formatCurrency(amount, currency = '₹') {
+    return `${currency}${parseFloat(amount).toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    })}`;
+}
+
+function formatPercentage(value) {
+    return `${value >= 0 ? '+' : ''}${parseFloat(value).toFixed(2)}%`;
+}
+
+// Event Listeners Setup
+function setupEventListeners() {
+    // Prediction form
+    const predictionForm = document.getElementById('predictionForm');
+    if (predictionForm) {
+        predictionForm.addEventListener('submit', handlePredictionSubmit);
     }
     
-    if (technicalChart) {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const textColor = isDark ? '#ffffff' : '#212529';
-        const gridColor = isDark ? '#404040' : '#dee2e6';
-        
-        technicalChart.options.plugins.legend.labels.color = textColor;
-        technicalChart.options.scales.x.ticks.color = textColor;
-        technicalChart.options.scales.x.grid.color = gridColor;
-        technicalChart.options.scales.y.ticks.color = textColor;
-        technicalChart.options.scales.y.grid.color = gridColor;
-        technicalChart.update();
+    // Chart controls
+    const chartTypeSelect = document.getElementById('chartTypeSelect');
+    if (chartTypeSelect) {
+        chartTypeSelect.addEventListener('change', function() {
+            updateTechnicalChart(this.value);
+        });
     }
     
-    if (heroChart) {
-        heroChart.update();
+    // Period controls
+    const chartPeriodSelect = document.getElementById('chartPeriodSelect');
+    if (chartPeriodSelect) {
+        chartPeriodSelect.addEventListener('change', function() {
+            const currentChartType = document.getElementById('chartTypeSelect')?.value || 'candlestick';
+            updateTechnicalChart(currentChartType);
+        });
+    }
+    
+    // Portfolio refresh
+    const refreshBtn = document.getElementById('refreshPortfolio');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            updatePortfolioValues();
+            showAdvancedToast('Portfolio Updated', 'Latest prices loaded', 'success');
+        });
     }
 }
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeApp();
+    
+    // Add CSS for real-time indicators
+    const style = document.createElement('style');
+    style.textContent = `
+        .realtime-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .price-updated {
+            animation: priceFlash 1s ease-in-out;
+        }
+        
+        @keyframes priceFlash {
+            0% { background-color: rgba(40, 167, 69, 0.3); }
+            100% { background-color: transparent; }
+        }
+        
+        .real-price {
+            color: #28a745 !important;
+        }
+        
+        .cached-price {
+            color: #ffc107 !important;
+        }
+        
+        .market-index {
+            transition: all 0.3s ease;
+        }
+        
+        .market-index:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .toast-message {
+            font-size: 0.9rem;
+            margin-top: 2px;
+        }
+        
+        .calibration-result {
+            text-align: left;
+        }
+        
+        .indicator-label {
+            font-weight: 500;
+        }
+    `;
+    document.head.appendChild(style);
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (realtimeInterval) {
+        clearInterval(realtimeInterval);
+    }
+});
 
 // Export functions for global access
 window.initializeApp = initializeApp;
 window.toggleTheme = toggleTheme;
 window.handlePredictionSubmit = handlePredictionSubmit;
-window.loadTopStocks = loadTopStocks;
-window.selectStock = selectStock;
 window.calibrateModel = calibrateModel;
-window.showToast = showToast;
+window.updateTechnicalChart = updateTechnicalChart;
+window.showAdvancedToast = showAdvancedToast;
+window.addSymbolToTracking = addSymbolToTracking;
+window.removeSymbolFromTracking = removeSymbolFromTracking;

@@ -396,12 +396,69 @@ class DataFetcher:
         try:
             if '.' not in symbol:
                 symbol = f"{symbol}.NS"
-            
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-            
-            return info.get('currentPrice') or info.get('regularMarketPrice')
-            
+
+            # 0) Try Finnhub if API key is available (more precise during market hours)
+            try:
+                if getattr(self.config, 'FINNHUB_API_KEY', None):
+                    import finnhub
+                    client = finnhub.Client(api_key=self.config.FINNHUB_API_KEY)
+                    finnhub_symbol = symbol
+                    q = client.quote(finnhub_symbol)
+                    if q and isinstance(q, dict):
+                        last_price = q.get('c')
+                        if last_price and float(last_price) > 0:
+                            return float(last_price)
+            except Exception:
+                pass
+
+            # 1) Try yfinance fast_info first (more reliable than info)
+            try:
+                ticker = yf.Ticker(symbol)
+                fast_info = getattr(ticker, 'fast_info', None)
+                if fast_info:
+                    price = fast_info.get('last_price') or fast_info.get('lastPrice')
+                    if price is None:
+                        price = fast_info.get('regular_market_price') or fast_info.get('regularMarketPrice')
+                    if price:
+                        return float(price)
+            except Exception:
+                pass
+
+            # 2) Fallback to info
+            try:
+                info = ticker.info
+                price = info.get('currentPrice') or info.get('regularMarketPrice')
+                if price:
+                    return float(price)
+            except Exception:
+                pass
+
+            # 3) Fallback: recent history close
+            try:
+                hist = ticker.history(period="1d", interval="1m")
+                if not hist.empty:
+                    return float(hist['Close'].dropna().iloc[-1])
+            except Exception:
+                pass
+
+            return None
+
         except Exception as e:
             logger.error(f"Error fetching real-time price for {symbol}: {str(e)}")
             return None
+
+    def get_real_time_prices_bulk(self, symbols: List[str]) -> Dict[str, Optional[float]]:
+        """
+        Get real-time prices for multiple symbols efficiently
+
+        Args:
+            symbols: List of stock symbols (without exchange suffix)
+
+        Returns:
+            Dict mapping symbol -> price (or None)
+        """
+        results: Dict[str, Optional[float]] = {}
+        for sym in symbols:
+            clean_sym = sym.replace('.NS', '')
+            results[clean_sym] = self.get_real_time_price(clean_sym)
+        return results

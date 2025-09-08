@@ -1,0 +1,147 @@
+{
+  "ITC Limited_30": {
+    "articles": [
+      {
+        "title": "ITC Limited reports strong quarterly earnings",
+        "description": "ITC Limited shows impressive growth in latest quarter with increased revenue and profit margins.",
+        "publishedAt": "2025-09-07T20:38:27.091078",
+        "source": {
+          "name": "Business Standard"
+        }
+      },
+      {
+        "title": "Analysts upgrade ITC Limited stock rating",
+        "description": "Multiple analysts have upgraded their rating for ITC Limited citing strong fundamentals and growth prospects.",
+        "publishedAt": "2025-09-06T20:38:27.091119",
+        "source": {
+          "name": "Economic Times"
+        }
+      },
+      {
+        "title": "ITC Limited announces new strategic partnership",
+        "description": "ITC Limited enters into strategic partnership to expand market reach and improve operational efficiency.",
+        "publishedAt": "2025-09-05T20:38:27.091134",
+        "source": {
+          "name": "Livemint"
+        }
+      }
+    ],
+    "timestamp": "2025-09-08T20:38:27.091149"
+  },
+  "OLAELEC_30": {
+    "articles": [
+      {
+        "title": "OLAELEC reports strong quarterly earnings",
+        "description": "OLAELEC shows impressive growth in latest quarter with increased revenue and profit margins.",
+        "publishedAt": "2025-09-07T20:43:28.904050",
+        "source": {
+          "name": "Business Standard"
+        }
+      },
+      {
+        "title": "Analysts upgrade OLAELEC stock rating",
+        "description": "Multiple analysts have upgraded their rating for OLAELEC citing strong fundamentals and growth prospects.",
+        "publishedAt": "2025-09-06T20:43:28.904082",
+        "source": {
+          "name": "Economic Times"
+        }
+      },
+      {
+        "title": "OLAELEC announces new strategic partnership",
+        "description": "OLAELEC enters into strategic partnership to expand market reach and improve operational efficiency.",
+        "publishedAt": "2025-09-05T20:43:28.904091",
+        "source": {
+          "name": "Livemint"
+        }
+      }
+    ],
+    "timestamp": "2025-09-08T20:43:28.904100"
+  },
+  "Tata Consultancy Services_30": {
+    "articles": [
+      {
+        "title": "Tata Consultancy Services reports strong quarterly earnings",
+        "description": "Tata Consultancy Services shows impressive growth in latest quarter with increased revenue and profit margins.",
+        "publishedAt": "2025-09-07T20:43:49.959652",
+        "source": {
+          "name": "Business Standard"
+        }
+      },
+      {
+        "title": "Analysts upgrade Tata Consultancy Services stock rating",
+        "description": "Multiple analysts have upgraded their rating for Tata Consultancy Services citing strong fundamentals and growth prospects.",
+        "publishedAt": "2025-09-06T20:43:49.959697",
+        "source": {
+          "name": "Economic Times"
+        }
+      },
+      {
+        "title": "Tata Consultancy Services announces new strategic partnership",
+        "description": "Tata Consultancy Services enters into strategic partnership to expand market reach and improve operational efficiency.",
+        "publishedAt": "2025-09-05T20:43:49.959712",
+        "source": {
+          "name": "Livemint"
+        }
+      }
+    ],
+    "timestamp": "2025-09-08T20:43:49.959736"
+  },
+  "HDFC Bank_30": {
+    "articles": [
+      {
+        "title": "HDFC Bank reports strong quarterly earnings",
+        "description": "HDFC Bank shows impressive growth in latest quarter with increased revenue and profit margins.",
+        "publishedAt": "2025-09-07T20:44:21.806983",
+        "source": {
+          "name": "Business Standard"
+        }
+      },
+      {
+        "title": "Analysts upgrade HDFC Bank stock rating",
+        "description": "Multiple analysts have upgraded their rating for HDFC Bank citing strong fundamentals and growth prospects.",
+        "publishedAt": "2025-09-06T20:44:21.807015",
+        "source": {
+          "name": "Economic Times"
+        }
+      },
+      {
+        "title": "HDFC Bank announces new strategic partnership",
+        "description": "HDFC Bank enters into strategic partnership to expand market reach and improve operational efficiency.",
+        "publishedAt": "2025-09-05T20:44:21.807023",
+        "source": {
+          "name": "Livemint"
+        }
+      }
+    ],
+    "timestamp": "2025-09-08T20:44:21.807032"
+  },
+  "Wipro_30": {
+    "articles": [
+      {
+        "title": "Wipro reports strong quarterly earnings",
+        "description": "Wipro shows impressive growth in latest quarter with increased revenue and profit margins.",
+        "publishedAt": "2025-09-07T21:13:47.129098",
+        "source": {
+          "name": "Business Standard"
+        }
+      },
+      {
+        "title": "Analysts upgrade Wipro stock rating",
+        "description": "Multiple analysts have upgraded their rating for Wipro citing strong fundamentals and growth prospects.",
+        "publishedAt": "2025-09-06T21:13:47.129131",
+        "source": {
+          "name": "Economic Times"
+        }
+      },
+      {
+        "title": "Wipro announces new strategic partnership",
+        "description": "Wipro enters into strategic partnership to expand market reach and improve operational efficiency.",
+        "publishedAt": "2025-09-05T21:13:47.129139",
+        "source": {
+          "name": "Livemint"
+        }
+      }
+    ],
+    "timestamp": "2025-09-08T21:13:47.129152"
+  }
+}
