@@ -583,3 +583,11 @@ class StockPredictor:
         except Exception as e:
             logger.error(f"Error checking model existence: {str(e)}")
             return False
+
+    def ensure_trained(self, data: pd.DataFrame, symbol: str):
+        """Train models if not already trained or data insufficiently cached."""
+        try:
+            if not self._models_exist(symbol):
+                self.train_models(data, symbol)
+        except Exception as e:
+            logger.warning(f"ensure_trained skipped: {e}")

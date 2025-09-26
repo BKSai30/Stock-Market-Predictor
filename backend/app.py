@@ -257,33 +257,32 @@ Analysts remain bullish on the sector, with most upgrading their target prices f
 def get_real_stock_price(symbol, max_retries=3):
     """Get real stock price with enhanced error handling"""
     try:
-        # Add .NS suffix if not present
+        # Normalize to NSE ticker for Indian symbols
+        raw_symbol = symbol
         if '.' not in symbol:
             symbol = f"{symbol}.NS"
-        
-        for attempt in range(max_retries):
-            try:
-                ticker = yf.Ticker(symbol)
-                hist = ticker.history(period="5d")
-                
-                if not hist.empty:
-                    current_price = float(hist['Close'].iloc[-1])
-                    if current_price > 0:
-                        logger.info(f"Successfully fetched real price for {symbol}: {current_price}")
-                        return current_price, True
-                        
-            except Exception as e:
-                logger.warning(f"YFinance attempt {attempt + 1} failed for {symbol}: {e}")
-                if attempt < max_retries - 1:
-                    sleep(1)
-        
-        # Try improved data fetcher
+
+        # 1) Prefer DataFetcher (Finnhub/fast_info) for live price
         try:
-            price = data_fetcher.get_real_time_price(symbol)
-            if price is not None and price > 0:
+            price = data_fetcher.get_real_time_price(raw_symbol)
+            if price is not None and float(price) > 0:
                 return float(price), True
         except Exception:
             pass
+
+        # 2) Fallback to yfinance intraday close (less stale than 5d)
+        for attempt in range(max_retries):
+            try:
+                ticker = yf.Ticker(symbol)
+                intraday = ticker.history(period="1d", interval="1m")
+                if not intraday.empty:
+                    current_price = float(intraday['Close'].dropna().iloc[-1])
+                    if current_price > 0:
+                        return current_price, True
+            except Exception as e:
+                logger.warning(f"YFinance intraday attempt {attempt + 1} failed for {symbol}: {e}")
+                if attempt < max_retries - 1:
+                    sleep(1)
 
         # Fallback to realistic simulation
         logger.warning(f"All real data sources failed for {symbol}, using fallback")
@@ -1229,6 +1228,10 @@ def predict_stock():
         # Enhanced price prediction using ML predictor and sentiment
         try:
             one_year_hist = get_ohlc_data(symbol, "1y")
+            try:
+                stock_predictor.ensure_trained(one_year_hist, symbol)
+            except Exception:
+                pass
             preferred_models = None
             try:
                 prefs = session.get('model_prefs') or {}
@@ -1358,13 +1361,17 @@ def get_top_stocks():
                 except:
                     price_change = random.uniform(-5, 5)
                 
-                # Generate prediction based on technical analysis
+                # Generate prediction using ML ensemble (force models to run)
                 hist_1y = get_ohlc_data(stock['symbol'], "1y")
                 ta_analysis = perform_technical_analysis(hist_1y.tail(90) if not hist_1y.empty else hist_1y)
                 try:
-                    pred_result = stock_predictor.predict_price(hist_1y, stock['symbol'], time_period)
+                    # Ensure models exist; retrain if missing
+                    pred_result = stock_predictor.predict_price(
+                        hist_1y, stock['symbol'], time_period,
+                        preferred_models=['random_forest','extra_trees','svr','lstm']
+                    )
                     pred_series = pred_result.get('predicted_prices') or []
-                    predicted_price = float(pred_series[-1]) if pred_series else current_price
+                    predicted_price = float(pred_series[-1]) if pred_series else predict_future_price(current_price, ta_analysis, time_period)
                 except Exception:
                     predicted_price = predict_future_price(current_price, ta_analysis, time_period)
                 predicted_change = ((predicted_price - current_price) / current_price) * 100
