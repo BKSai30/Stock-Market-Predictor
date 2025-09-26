@@ -170,6 +170,26 @@
             display: none;
             flex-direction: column;
         }
+
+        /* Responsive adjustments */
+        @media (max-width: 992px) {
+            .ai-chat-panel {
+                position: fixed;
+                right: 10px;
+                left: 10px;
+                bottom: 90px;
+                width: auto;
+                height: 55vh;
+            }
+            .technical-chart-container { height: 380px; }
+            .chart-container { height: 320px; }
+        }
+        @media (max-width: 576px) {
+            .hero-section { padding: 32px 0; }
+            .ai-chat-toggle { width: 54px; height: 54px; font-size: 20px; }
+            .ai-chat-panel { height: 60vh; }
+            .navbar .btn { padding: 4px 8px; }
+        }
         
         .ai-chat-header {
             background: var(--hero-bg);
@@ -566,11 +586,14 @@
 
                     <!-- Price Chart -->
                     <div class="card mb-4">
-                        <div class="card-header">
+                        <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">
                                 <i class="fas fa-chart-area me-2"></i>
                                 Price Movement & Prediction
                             </h5>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="downloadChart('predictionChart')">
+                                <i class="fas fa-download"></i>
+                            </button>
                         </div>
                         <div class="card-body">
                             <div class="chart-container">
@@ -695,21 +718,15 @@
                         <div class="stock-controls">
                             <div class="w-100 mb-2">
                                 <label class="form-label text-muted small">Category:</label>
-                                <div class="d-grid gap-1">
-                                    <button class="btn btn-outline-primary btn-sm volatility-btn active" data-category="safe">
-                                        Safe Stocks
-                                    </button>
-                                    <button class="btn btn-outline-primary btn-sm volatility-btn" data-category="volatile">
-                                        Volatile Stocks
-                                    </button>
-                                    <button class="btn btn-outline-primary btn-sm volatility-btn" data-category="highly_volatile">
-                                        High Risk/Reward
-                                    </button>
+                                <div class="d-grid gap-1 gap-md-2 d-md-flex">
+                                    <button class="btn btn-outline-primary btn-sm volatility-btn active" data-category="safe">Safe</button>
+                                    <button class="btn btn-outline-primary btn-sm volatility-btn" data-category="volatile">Volatile</button>
+                                    <button class="btn btn-outline-primary btn-sm volatility-btn" data-category="highly_volatile">High Risk</button>
                                 </div>
                             </div>
                             
                             <div class="row">
-                                <div class="col-6">
+                                <div class="col-6 col-md-6">
                                     <label for="stockCount" class="form-label text-muted small">Number of Stocks:</label>
                                     <select class="form-select form-select-sm" id="stockCount">
                                         <option value="1">1</option>
@@ -724,7 +741,7 @@
                                         <option value="10">10</option>
                                     </select>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-6 col-md-6">
                                     <label for="timePeriod" class="form-label text-muted small">Time Period (Days):</label>
                                     <input type="number" class="form-control form-control-sm" id="timePeriod" 
                                            min="1" max="30" value="5" placeholder="1-30">
@@ -759,6 +776,75 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Paper Trading -->
+                <div class="card mt-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-money-check-alt me-2"></i>
+                            Paper Trading
+                        </h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshTrading()">
+                            <i class="fas fa-rotate"></i>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <small class="text-muted">Cash</small>
+                                <div class="fw-bold" id="acctCash">₹0.00</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Equity</small>
+                                <div class="fw-bold" id="acctEquity">₹0.00</div>
+                            </div>
+                        </div>
+
+                        <form id="orderForm" class="row g-2 mb-3" onsubmit="placeOrder(event)">
+                            <div class="col-4">
+                                <input type="text" class="form-control form-control-sm" id="orderSymbol" placeholder="Symbol">
+                            </div>
+                            <div class="col-3">
+                                <input type="number" class="form-control form-control-sm" id="orderQty" min="1" placeholder="Qty">
+                            </div>
+                            <div class="col-3">
+                                <select id="orderSide" class="form-select form-select-sm">
+                                    <option value="BUY">BUY</option>
+                                    <option value="SELL">SELL</option>
+                                </select>
+                            </div>
+                            <div class="col-2 d-grid">
+                                <button class="btn btn-sm btn-primary" type="submit">Go</button>
+                            </div>
+                        </form>
+
+                        <div class="mb-3">
+                            <h6 class="mb-2">Positions</h6>
+                            <div id="positionsList" class="small text-muted">No positions</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <h6 class="mb-2">Orders</h6>
+                            <div id="ordersList" class="small text-muted">No orders</div>
+                        </div>
+
+                        <div>
+                            <h6 class="mb-2">Alerts</h6>
+                            <form id="alertForm" class="row g-2 mb-2" onsubmit="addAlert(event)">
+                                <div class="col-4">
+                                    <input type="text" class="form-control form-control-sm" id="alertSymbol" placeholder="Symbol">
+                                </div>
+                                <div class="col-6">
+                                    <input type="text" class="form-control form-control-sm" id="alertCondition" placeholder="e.g., price>2500">
+                                </div>
+                                <div class="col-2 d-grid">
+                                    <button class="btn btn-sm btn-outline-primary" type="submit">Add</button>
+                                </div>
+                            </form>
+                            <div id="alertsList" class="small text-muted">No alerts</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -769,9 +855,26 @@
             <div class="ai-chat-header">
                 <div class="d-flex justify-content-between align-items-center">
                     <span><i class="fas fa-robot me-2"></i>AI Investment Assistant</span>
-                    <button class="btn btn-sm text-white" onclick="toggleAIChat()">
-                        <i class="fas fa-times"></i>
-                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <select id="aiLangSelect" class="form-select form-select-sm" style="width: auto;">
+                            <option value="auto" selected>Auto</option>
+                            <option value="en">English</option>
+                            <option value="te">తెలుగు</option>
+                            <option value="ta">தமிழ்</option>
+                            <option value="hi">हिंदी</option>
+                            <option value="es">Español</option>
+                            <option value="fr">Français</option>
+                        </select>
+                        <button id="aiSpeakToggle" class="btn btn-sm btn-light" title="Toggle voice reply" type="button">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                        <button id="aiMicBtn" class="btn btn-sm btn-light" title="Voice input" type="button">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button class="btn btn-sm text-white" onclick="toggleAIChat()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="ai-chat-messages" id="aiChatMessages">
@@ -855,6 +958,9 @@
             // Load market indices initially and on interval
             updateMarketIndices();
             setInterval(updateMarketIndices, 30000);
+
+            // Load paper trading data
+            refreshTrading();
         });
 
         function setupEventListeners() {
@@ -1404,6 +1510,137 @@
             container.innerHTML = stocksHTML;
         }
 
+        // ===== Paper Trading UI =====
+        async function refreshTrading() {
+            await Promise.all([
+                loadAccount(),
+                loadPositions(),
+                loadOrders(),
+                loadAlerts()
+            ]);
+        }
+
+        async function loadAccount() {
+            try {
+                const res = await fetch('/api/trading/account');
+                if (!res.ok) return;
+                const data = await res.json();
+                document.getElementById('acctCash').textContent = `₹${Number(data.cash || 0).toFixed(2)}`;
+                document.getElementById('acctEquity').textContent = `₹${Number(data.equity || 0).toFixed(2)}`;
+            } catch (_) {}
+        }
+
+        async function loadPositions() {
+            try {
+                const res = await fetch('/api/trading/positions');
+                const container = document.getElementById('positionsList');
+                if (!res.ok) { container.textContent = 'Failed to load'; return; }
+                const data = await res.json();
+                if (!data.positions || data.positions.length === 0) { container.textContent = 'No positions'; return; }
+                container.innerHTML = data.positions.map(p => `
+                    <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-1">
+                        <div>
+                            <div class="fw-bold">${p.symbol}</div>
+                            <div class="small text-muted">Qty: ${p.quantity} @ ₹${p.avg_price.toFixed(2)}</div>
+                        </div>
+                        <div class="text-end">
+                            <div class="small">Last: ₹${p.last_price.toFixed(2)}</div>
+                            <div class="small ${p.unrealized_pl >= 0 ? 'text-success' : 'text-danger'}">PnL: ₹${p.unrealized_pl.toFixed(2)}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (_) {}
+        }
+
+        async function loadOrders() {
+            try {
+                const res = await fetch('/api/trading/orders');
+                const container = document.getElementById('ordersList');
+                if (!res.ok) { container.textContent = 'Failed to load'; return; }
+                const data = await res.json();
+                if (!data.orders || data.orders.length === 0) { container.textContent = 'No orders'; return; }
+                container.innerHTML = data.orders.map(o => `
+                    <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-1">
+                        <div>
+                            <div class="fw-bold">${o.side} ${o.symbol}</div>
+                            <div class="small text-muted">Qty: ${o.quantity} • ${o.order_type} • ${o.status}</div>
+                        </div>
+                        <div class="text-end small">Fill: ₹${(o.avg_fill_price || 0).toFixed(2)}</div>
+                    </div>
+                `).join('');
+            } catch (_) {}
+        }
+
+        async function placeOrder(event) {
+            event.preventDefault();
+            const symbol = document.getElementById('orderSymbol').value.trim();
+            const quantity = parseInt(document.getElementById('orderQty').value || '0', 10);
+            const side = document.getElementById('orderSide').value;
+            if (!symbol || quantity <= 0) { showToast('Error', 'Enter symbol and quantity', 'error'); return; }
+            try {
+                const res = await fetch('/api/trading/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol, side, quantity })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Order failed');
+                showToast('Success', `Order filled @ ₹${Number(data.fill_price || 0).toFixed(2)}`, 'success');
+                document.getElementById('orderForm').reset();
+                refreshTrading();
+            } catch (e) {
+                showToast('Error', e.message, 'error');
+            }
+        }
+
+        async function loadAlerts() {
+            try {
+                const res = await fetch('/api/trading/alerts');
+                const container = document.getElementById('alertsList');
+                if (!res.ok) { container.textContent = 'Failed to load'; return; }
+                const data = await res.json();
+                if (!data.alerts || data.alerts.length === 0) { container.textContent = 'No alerts'; return; }
+                container.innerHTML = data.alerts.map(a => `
+                    <div class="d-flex justify-content-between align-items-center border rounded p-2 mb-1">
+                        <div>
+                            <div class="fw-bold">${a.symbol}</div>
+                            <div class="small text-muted">${a.condition}</div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAlert(${a.id})"><i class="fas fa-trash"></i></button>
+                    </div>
+                `).join('');
+            } catch (_) {}
+        }
+
+        async function addAlert(event) {
+            event.preventDefault();
+            const symbol = document.getElementById('alertSymbol').value.trim();
+            const condition = document.getElementById('alertCondition').value.trim();
+            if (!symbol || !condition) { showToast('Error', 'Enter symbol and condition', 'error'); return; }
+            try {
+                const res = await fetch('/api/trading/alerts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol, condition })
+                });
+                if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+                document.getElementById('alertForm').reset();
+                loadAlerts();
+            } catch (e) {
+                showToast('Error', e.message, 'error');
+            }
+        }
+
+        async function deleteAlert(id) {
+            try {
+                const res = await fetch(`/api/trading/alerts?id=${id}`, { method: 'DELETE' });
+                if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+                loadAlerts();
+            } catch (e) {
+                showToast('Error', e.message, 'error');
+            }
+        }
+
         async function quickPredict(symbol) {
             try {
                 document.getElementById('stockInput').value = symbol;
@@ -1495,7 +1732,7 @@
             }
         }
 
-        // AI Chat Form Handler
+        // ===== AI Chat (Text, Voice, TTS) =====
         document.getElementById('aiChatForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -1535,7 +1772,11 @@
                 typingDiv.remove();
                 
                 // Add AI response
-                addChatMessage(data.response || 'Sorry, I could not generate a response.', 'ai');
+                const aiText = data.response || 'Sorry, I could not generate a response.';
+                addChatMessage(aiText, 'ai');
+                if (ttsEnabled) {
+                    speakText(aiText);
+                }
                 
             } catch (error) {
                 typingDiv.remove();
@@ -1562,6 +1803,125 @@
             
             messagesContainer.appendChild(messageDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // --- Voice input via Web Speech API ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        let recognizing = false;
+        const micBtn = document.getElementById('aiMicBtn');
+        const langSelect = document.getElementById('aiLangSelect');
+        const speakToggle = document.getElementById('aiSpeakToggle');
+        let ttsEnabled = false;
+
+        if (micBtn) {
+            micBtn.addEventListener('click', () => {
+                if (!SpeechRecognition) {
+                    showToast('Notice', 'Voice input not supported in this browser.', 'warning');
+                    return;
+                }
+                if (!recognition) {
+                    recognition = new SpeechRecognition();
+                    recognition.continuous = false;
+                    recognition.interimResults = false;
+                    recognition.maxAlternatives = 1;
+                }
+                // Set language
+                const sel = langSelect ? langSelect.value : 'auto';
+                recognition.lang = sel === 'auto' ? 'en-US' : mapLangToBCP47(sel);
+
+                if (!recognizing) {
+                    recognizing = true;
+                    micBtn.classList.add('btn-primary');
+                    micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+                    recognition.start();
+                } else {
+                    recognizing = false;
+                    micBtn.classList.remove('btn-primary');
+                    micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+                    recognition.stop();
+                }
+
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    recognizing = false;
+                    micBtn.classList.remove('btn-primary');
+                    micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+                    const input = document.getElementById('aiChatInput');
+                    input.value = transcript;
+                    // Auto-submit
+                    document.getElementById('aiChatForm').dispatchEvent(new Event('submit'));
+                };
+                recognition.onerror = () => {
+                    recognizing = false;
+                    micBtn.classList.remove('btn-primary');
+                    micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+                };
+                recognition.onend = () => {
+                    recognizing = false;
+                    micBtn.classList.remove('btn-primary');
+                    micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+                };
+            });
+        }
+
+        // --- Text-to-speech ---
+        let voices = [];
+        function loadVoices() {
+            voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+        }
+        if ('speechSynthesis' in window) {
+            loadVoices();
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+
+        if (speakToggle) {
+            speakToggle.addEventListener('click', () => {
+                ttsEnabled = !ttsEnabled;
+                speakToggle.classList.toggle('btn-primary', ttsEnabled);
+            });
+        }
+
+        function speakText(text) {
+            if (!('speechSynthesis' in window)) return;
+            const utter = new SpeechSynthesisUtterance(text);
+            const sel = langSelect ? langSelect.value : 'auto';
+            const langTag = sel === 'auto' ? detectLanguageTag(text) : mapLangToBCP47(sel);
+            utter.lang = langTag;
+            const voice = pickVoiceForLang(langTag);
+            if (voice) utter.voice = voice;
+            utter.rate = 1.0;
+            utter.pitch = 1.0;
+            window.speechSynthesis.speak(utter);
+        }
+
+        function mapLangToBCP47(code) {
+            switch (code) {
+                case 'en': return 'en-US';
+                case 'hi': return 'hi-IN';
+                case 'te': return 'te-IN';
+                case 'ta': return 'ta-IN';
+                case 'es': return 'es-ES';
+                case 'fr': return 'fr-FR';
+                default: return 'en-US';
+            }
+        }
+
+        function pickVoiceForLang(langTag) {
+            if (!voices || voices.length === 0) return null;
+            const exact = voices.find(v => v.lang && v.lang.toLowerCase() === langTag.toLowerCase());
+            if (exact) return exact;
+            const base = langTag.split('-')[0];
+            return voices.find(v => v.lang && v.lang.toLowerCase().startsWith(base));
+        }
+
+        function detectLanguageTag(text) {
+            // Simple heuristic: default to English if mostly ASCII.
+            // Users can override via language selector.
+            const asciiRatio = (text.match(/[\x00-\x7F]/g) || []).length / Math.max(1, text.length);
+            if (asciiRatio > 0.9) return 'en-US';
+            // Fallback to English to avoid wrong voices; users can select manually.
+            return 'en-US';
         }
 
         // UI Helper Functions
@@ -1728,6 +2088,16 @@
                 technicalChart.options.scales.y.grid.color = gridColor;
                 technicalChart.update();
             }
+        }
+
+        // Utility: download chart PNG
+        function downloadChart(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            const link = document.createElement('a');
+            link.download = `${canvasId}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
         }
 
         // Logout function

@@ -18,6 +18,11 @@ class Config:
     FINNHUB_API_KEY = os.environ.get('FINNHUB_API_KEY') or os.environ.get('FINNHUB_TOKEN')
     PERPLEXITY_API_KEY = os.environ.get('PERPLEXITY_API_KEY') or os.environ.get('PPLX_API_KEY')
     PERPLEXITY_MODEL = os.environ.get('PERPLEXITY_MODEL') or 'sonar-small-online'
+
+    # OpenRouter (Grok) settings
+    OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
+    OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL') or 'xai/grok-2-latest'
+    OPENROUTER_BASE_URL = os.environ.get('OPENROUTER_BASE_URL') or 'https://openrouter.ai/api/v1'
     
     # Data fetching settings
     DATA_CACHE_DURATION = timedelta(minutes=15)  # Cache data for 15 minutes

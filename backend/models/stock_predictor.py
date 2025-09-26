@@ -370,7 +370,7 @@ class StockPredictor:
             logger.error(f"Error training models: {str(e)}")
             return {}
     
-    def predict_price(self, data: pd.DataFrame, symbol: str, days_ahead: int = 5) -> Dict[str, Any]:
+    def predict_price(self, data: pd.DataFrame, symbol: str, days_ahead: int = 5, preferred_models: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Predict stock price for future days
         
@@ -408,6 +408,8 @@ class StockPredictor:
             
             # Predict with each model
             for model_name, model in self.models.items():
+                if preferred_models and model_name not in preferred_models:
+                    continue
                 if model_name == 'lstm':
                     continue
                 
@@ -437,6 +439,8 @@ class StockPredictor:
             
             # LSTM prediction
             try:
+                if preferred_models and 'lstm' not in preferred_models:
+                    raise Exception('lstm not selected')
                 lstm_model = load_model(os.path.join(self.model_save_path, f'lstm_{symbol}.h5'))
                 
                 # Prepare LSTM input
@@ -481,7 +485,8 @@ class StockPredictor:
                     'predicted_prices': ensemble_prediction,
                     'individual_predictions': predictions,
                     'confidence': total_confidence,
-                    'model_confidences': confidences
+                    'model_confidences': confidences,
+                    'selected_models': list(predictions.keys())
                 }
             else:
                 raise ValueError("No successful predictions")

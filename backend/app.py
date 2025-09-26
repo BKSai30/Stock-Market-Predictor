@@ -25,6 +25,7 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from dotenv import load_dotenv
 import concurrent.futures
 from typing import List, Dict, Any, Optional
+from langdetect import detect, DetectorFactory
 
 from config import Config
 from utils.data_fetcher import DataFetcher
@@ -47,6 +48,9 @@ data_fetcher = DataFetcher()
 ai_assistant = AIAssistant()
 stock_predictor = StockPredictor()
 sentiment_service = SentimentAnalyzer()
+
+# Ensure deterministic language detection
+DetectorFactory.seed = 0
 
 # Initialize optional components, ignore failures in non-ML environments
 try:
@@ -115,6 +119,51 @@ def init_db():
                       calibration_data TEXT,
                       accuracy_score REAL,
                       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Paper trading: accounts
+        c.execute('''CREATE TABLE IF NOT EXISTS accounts
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id INTEGER UNIQUE,
+                      cash REAL NOT NULL DEFAULT 100000.0,
+                      equity REAL NOT NULL DEFAULT 0.0,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (user_id) REFERENCES users (id))''')
+
+        # Paper trading: positions
+        c.execute('''CREATE TABLE IF NOT EXISTS positions
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id INTEGER NOT NULL,
+                      symbol TEXT NOT NULL,
+                      quantity INTEGER NOT NULL,
+                      avg_price REAL NOT NULL,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      UNIQUE(user_id, symbol),
+                      FOREIGN KEY (user_id) REFERENCES users (id))''')
+
+        # Paper trading: orders
+        c.execute('''CREATE TABLE IF NOT EXISTS orders
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id INTEGER NOT NULL,
+                      symbol TEXT NOT NULL,
+                      side TEXT NOT NULL, -- BUY / SELL
+                      quantity INTEGER NOT NULL,
+                      order_type TEXT NOT NULL DEFAULT 'MARKET',
+                      status TEXT NOT NULL DEFAULT 'NEW', -- NEW/FILLED/CANCELLED/REJECTED
+                      filled_quantity INTEGER NOT NULL DEFAULT 0,
+                      avg_fill_price REAL,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (user_id) REFERENCES users (id))''')
+
+        # Alerts
+        c.execute('''CREATE TABLE IF NOT EXISTS alerts
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      user_id INTEGER NOT NULL,
+                      symbol TEXT NOT NULL,
+                      condition TEXT NOT NULL, -- e.g., price>2500
+                      note TEXT,
+                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                      FOREIGN KEY (user_id) REFERENCES users (id))''')
         
         conn.commit()
         conn.close()
@@ -434,6 +483,47 @@ def ask_perplexity(question: str) -> Optional[str]:
         logger.error(f"Perplexity API error: {e}")
     return None
 
+def ask_openrouter_grok(question: str, language_hint: Optional[str] = 'en') -> Optional[str]:
+    """Query OpenRouter Grok model with multilingual support and site-aware system prompt."""
+    try:
+        if not config.OPENROUTER_API_KEY:
+            return None
+        headers = {
+            'Authorization': f'Bearer {config.OPENROUTER_API_KEY}',
+            'HTTP-Referer': 'http://localhost',
+            'X-Title': 'Stock Market Predictor',
+            'Content-Type': 'application/json'
+        }
+        system_prompt = (
+            "You are a helpful, professional trading assistant for a stock prediction and portfolio platform. "
+            "Answer concisely, in the user's language. If the user asks about the website's features, base answers on these endpoints: "
+            "/api/predict, /api/technical-chart/{symbol}, /api/portfolio/*, /api/news, /api/top-stocks, /api/market-indices. "
+            "When relevant, explain RSI, MACD, Bollinger Bands briefly. Avoid financial advice disclaimers beyond brief common-sense caution."
+        )
+        messages = [
+            { 'role': 'system', 'content': system_prompt },
+            { 'role': 'user', 'content': question }
+        ]
+        payload = {
+            'model': config.OPENROUTER_MODEL,
+            'messages': messages,
+            'temperature': 0.3,
+            'max_tokens': 600,
+            'top_p': 0.9
+        }
+        url = f"{config.OPENROUTER_BASE_URL}/chat/completions"
+        resp = requests.post(url, headers=headers, json=payload, timeout=20)
+        if resp.status_code == 200:
+            data = resp.json()
+            choices = data.get('choices') or []
+            if choices:
+                return choices[0].get('message', {}).get('content')
+        else:
+            logger.warning(f"OpenRouter API non-200: {resp.status_code} {resp.text[:200]}")
+    except Exception as e:
+        logger.error(f"OpenRouter API error: {e}")
+    return None
+
 def get_financial_answer(question):
     """Provide financial and investment answers"""
     question_lower = question.lower()
@@ -599,6 +689,183 @@ def real_time_prices():
 def internal_error(error):
     logger.error(f"Internal error: {error}")
     return jsonify({'error': 'Internal server error'}), 500
+
+# ---------------- Paper Trading APIs ----------------
+def get_or_create_account(user_id: int) -> Dict[str, Any]:
+    conn = sqlite3.connect('stock_app.db')
+    c = conn.cursor()
+    c.execute('SELECT cash, equity FROM accounts WHERE user_id = ?', (user_id,))
+    row = c.fetchone()
+    if not row:
+        c.execute('INSERT INTO accounts (user_id, cash, equity) VALUES (?, ?, ?)', (user_id, 100000.0, 0.0))
+        conn.commit()
+        cash, equity = 100000.0, 0.0
+    else:
+        cash, equity = float(row[0]), float(row[1])
+    conn.close()
+    return {'cash': cash, 'equity': equity}
+
+def update_account_equity(user_id: int):
+    try:
+        conn = sqlite3.connect('stock_app.db')
+        c = conn.cursor()
+        # sum of market value of positions
+        c.execute('SELECT symbol, quantity, avg_price FROM positions WHERE user_id = ?', (user_id,))
+        positions = c.fetchall()
+        equity = 0.0
+        for sym, qty, _ in positions:
+            price, _ = get_real_stock_price(sym)
+            equity += float(price) * int(qty)
+        c.execute('UPDATE accounts SET equity = ?, created_at = created_at WHERE user_id = ?', (equity, user_id))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed updating equity: {e}")
+
+@app.route('/api/trading/account')
+def trading_account():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    acct = get_or_create_account(session['user_id'])
+    update_account_equity(session['user_id'])
+    acct = get_or_create_account(session['user_id'])
+    return jsonify(acct)
+
+@app.route('/api/trading/positions')
+def trading_positions():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    conn = sqlite3.connect('stock_app.db')
+    c = conn.cursor()
+    c.execute('SELECT symbol, quantity, avg_price FROM positions WHERE user_id = ?', (session['user_id'],))
+    rows = c.fetchall()
+    conn.close()
+    positions = []
+    for sym, qty, avgp in rows:
+        price, _ = get_real_stock_price(sym)
+        positions.append({
+            'symbol': sym,
+            'quantity': int(qty),
+            'avg_price': float(avgp),
+            'last_price': float(price),
+            'unrealized_pl': round((float(price) - float(avgp)) * int(qty), 2)
+        })
+    return jsonify({'positions': positions})
+
+@app.route('/api/trading/orders', methods=['GET', 'POST'])
+def trading_orders():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    if request.method == 'GET':
+        conn = sqlite3.connect('stock_app.db')
+        c = conn.cursor()
+        c.execute('SELECT id, symbol, side, quantity, order_type, status, filled_quantity, avg_fill_price, created_at FROM orders WHERE user_id = ? ORDER BY id DESC', (session['user_id'],))
+        rows = c.fetchall()
+        conn.close()
+        orders = []
+        for r in rows:
+            orders.append({
+                'id': r[0], 'symbol': r[1], 'side': r[2], 'quantity': r[3], 'order_type': r[4], 'status': r[5],
+                'filled_quantity': r[6], 'avg_fill_price': r[7], 'created_at': r[8]
+            })
+        return jsonify({'orders': orders})
+    else:
+        data = request.get_json() or {}
+        symbol = (data.get('symbol') or '').upper().replace('.NS', '')
+        side = (data.get('side') or '').upper()
+        qty = int(data.get('quantity') or 0)
+        if not symbol or side not in ['BUY', 'SELL'] or qty <= 0:
+            return jsonify({'error': 'Invalid order params'}), 400
+
+        # Risk checks: max position size 30% of cash; prevent shorting
+        acct = get_or_create_account(session['user_id'])
+        price, _ = get_real_stock_price(symbol)
+        notional = float(price) * qty
+        max_order = acct['cash'] * 0.3
+        if side == 'BUY' and notional > max_order:
+            return jsonify({'error': 'Order exceeds 30% cash risk limit'}), 400
+        if side == 'SELL':
+            # Ensure sufficient quantity
+            conn = sqlite3.connect('stock_app.db')
+            c = conn.cursor()
+            c.execute('SELECT quantity FROM positions WHERE user_id = ? AND symbol = ?', (session['user_id'], symbol))
+            row = c.fetchone()
+            have = int(row[0]) if row else 0
+            conn.close()
+            if qty > have:
+                return jsonify({'error': 'Insufficient position to sell'}), 400
+
+        # Execute as instant fill (paper)
+        conn = sqlite3.connect('stock_app.db')
+        c = conn.cursor()
+        c.execute('INSERT INTO orders (user_id, symbol, side, quantity, order_type, status, filled_quantity, avg_fill_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                  (session['user_id'], symbol, side, qty, 'MARKET', 'FILLED', qty, price))
+        # Update cash and positions
+        if side == 'BUY':
+            new_cash = acct['cash'] - notional
+            c.execute('UPDATE accounts SET cash = ? WHERE user_id = ?', (new_cash, session['user_id']))
+            # upsert position
+            c.execute('SELECT quantity, avg_price FROM positions WHERE user_id = ? AND symbol = ?', (session['user_id'], symbol))
+            row = c.fetchone()
+            if row:
+                old_qty, old_avg = int(row[0]), float(row[1])
+                new_qty = old_qty + qty
+                new_avg = ((old_qty * old_avg) + (qty * price)) / new_qty
+                c.execute('UPDATE positions SET quantity = ?, avg_price = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND symbol = ?', (new_qty, new_avg, session['user_id'], symbol))
+            else:
+                c.execute('INSERT INTO positions (user_id, symbol, quantity, avg_price) VALUES (?, ?, ?, ?)', (session['user_id'], symbol, qty, price))
+        else: # SELL
+            new_cash = acct['cash'] + notional
+            c.execute('UPDATE accounts SET cash = ? WHERE user_id = ?', (new_cash, session['user_id']))
+            c.execute('SELECT quantity, avg_price FROM positions WHERE user_id = ? AND symbol = ?', (session['user_id'], symbol))
+            row = c.fetchone()
+            if row:
+                old_qty, old_avg = int(row[0]), float(row[1])
+                new_qty = max(0, old_qty - qty)
+                if new_qty == 0:
+                    c.execute('DELETE FROM positions WHERE user_id = ? AND symbol = ?', (session['user_id'], symbol))
+                else:
+                    c.execute('UPDATE positions SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND symbol = ?', (new_qty, session['user_id'], symbol))
+        conn.commit()
+        conn.close()
+        update_account_equity(session['user_id'])
+        return jsonify({'success': True, 'message': 'Order filled', 'fill_price': round(price, 2)})
+
+@app.route('/api/trading/alerts', methods=['GET', 'POST', 'DELETE'])
+def trading_alerts():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    if request.method == 'GET':
+        conn = sqlite3.connect('stock_app.db')
+        c = conn.cursor()
+        c.execute('SELECT id, symbol, condition, note, created_at FROM alerts WHERE user_id = ? ORDER BY id DESC', (session['user_id'],))
+        rows = c.fetchall()
+        conn.close()
+        alerts = [{'id': r[0], 'symbol': r[1], 'condition': r[2], 'note': r[3], 'created_at': r[4]} for r in rows]
+        return jsonify({'alerts': alerts})
+    elif request.method == 'POST':
+        data = request.get_json() or {}
+        symbol = (data.get('symbol') or '').upper().replace('.NS', '')
+        condition = (data.get('condition') or '').strip()
+        note = (data.get('note') or '').strip()
+        if not symbol or not condition:
+            return jsonify({'error': 'symbol and condition required'}), 400
+        conn = sqlite3.connect('stock_app.db')
+        c = conn.cursor()
+        c.execute('INSERT INTO alerts (user_id, symbol, condition, note) VALUES (?, ?, ?, ?)', (session['user_id'], symbol, condition, note))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    else: # DELETE
+        alert_id = request.args.get('id')
+        if not alert_id:
+            return jsonify({'error': 'id required'}), 400
+        conn = sqlite3.connect('stock_app.db')
+        c = conn.cursor()
+        c.execute('DELETE FROM alerts WHERE id = ? AND user_id = ?', (alert_id, session['user_id']))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
 
 @app.route('/')
 def index():
@@ -962,7 +1229,13 @@ def predict_stock():
         # Enhanced price prediction using ML predictor and sentiment
         try:
             one_year_hist = get_ohlc_data(symbol, "1y")
-            prediction_result = stock_predictor.predict_price(one_year_hist, symbol, days_ahead)
+            preferred_models = None
+            try:
+                prefs = session.get('model_prefs') or {}
+                preferred_models = prefs.get('preferred_models')
+            except Exception:
+                preferred_models = None
+            prediction_result = stock_predictor.predict_price(one_year_hist, symbol, days_ahead, preferred_models=preferred_models or ['random_forest','extra_trees','svr','lstm'])
             predicted_series = prediction_result.get('predicted_prices') or []
             base_predicted = float(predicted_series[-1]) if predicted_series else current_price
         except Exception as _:
@@ -1146,9 +1419,20 @@ def ai_assistant_route():
         if not question:
             return jsonify({'error': 'Question is required'}), 400
         
-        # Prefer Perplexity if API key present, else fallback to DuckDuckGo + local assistant
+        # Prefer OpenRouter Grok if configured, else fallback chain
         response = None
-        if getattr(config, 'PERPLEXITY_API_KEY', None):
+        detected_lang = None
+        try:
+            detected_lang = detect(question)
+        except Exception:
+            detected_lang = 'en'
+
+        if getattr(config, 'OPENROUTER_API_KEY', None):
+            try:
+                response = ask_openrouter_grok(question, detected_lang)
+            except Exception as _:
+                response = None
+        if not response and getattr(config, 'PERPLEXITY_API_KEY', None):
             try:
                 response = ask_perplexity(question)
             except Exception:
@@ -1203,6 +1487,27 @@ def calibrate_prediction():
         logger.error(f"Calibration error: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/model-prefs', methods=['GET','POST'])
+def model_prefs():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+    if request.method == 'GET':
+        prefs = session.get('model_prefs') or {
+            'preferred_models': ['random_forest','extra_trees','svr','lstm'],
+            'default_horizon': 5
+        }
+        return jsonify(prefs)
+    else:
+        data = request.get_json() or {}
+        preferred_models = data.get('preferred_models')
+        default_horizon = int(data.get('default_horizon', 5))
+        if preferred_models and isinstance(preferred_models, list):
+            session['model_prefs'] = {
+                'preferred_models': preferred_models,
+                'default_horizon': max(1, min(30, default_horizon))
+            }
+        return jsonify(session.get('model_prefs'))
+
 # News routes
 @app.route('/api/news')
 def get_news():
@@ -1216,6 +1521,49 @@ def get_news():
     except Exception as e:
         logger.error(f"News error: {e}")
         return jsonify({'error': str(e)}), 500
+
+# Background alert checker (simple, in-process)
+def evaluate_condition(symbol: str, condition: str) -> bool:
+    try:
+        price, _ = get_real_stock_price(symbol)
+        # very basic parser: supports price>n, price<n, price>=n, price<=n
+        cond = condition.replace(' ', '').lower()
+        if cond.startswith('price>='):
+            return price >= float(cond.split('>=')[1])
+        if cond.startswith('price<='):
+            return price <= float(cond.split('<=')[1])
+        if cond.startswith('price>'):
+            return price > float(cond.split('>')[1])
+        if cond.startswith('price<'):
+            return price < float(cond.split('<')[1])
+    except Exception as e:
+        logger.debug(f"Alert condition eval error for {symbol}: {e}")
+    return False
+
+def alert_checker_loop():
+    while True:
+        try:
+            conn = sqlite3.connect('stock_app.db')
+            c = conn.cursor()
+            c.execute('SELECT id, user_id, symbol, condition FROM alerts')
+            alerts = c.fetchall()
+            triggered = []
+            for aid, uid, sym, cond in alerts:
+                if evaluate_condition(sym, cond):
+                    triggered.append((aid, uid, sym, cond))
+            conn.close()
+            # Simple logging; UI can poll alerts and we can later add a notifications table
+            for _, uid, sym, cond in triggered:
+                logger.info(f"Alert triggered for user {uid}: {sym} {cond}")
+        except Exception as e:
+            logger.debug(f"Alert checker error: {e}")
+        sleep(30)
+
+# Start alert checker in background
+try:
+    threading.Thread(target=alert_checker_loop, daemon=True).start()
+except Exception:
+    pass
 
 # Helper functions
 def perform_technical_analysis(hist_data):
