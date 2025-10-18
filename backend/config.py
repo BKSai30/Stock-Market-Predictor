@@ -21,7 +21,7 @@ class Config:
 
     # OpenRouter (Grok) settings
     OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
-    OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL') or 'xai/grok-2-latest'
+    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "x-ai/grok-4")
     OPENROUTER_BASE_URL = os.environ.get('OPENROUTER_BASE_URL') or 'https://openrouter.ai/api/v1'
     
     # Data fetching settings
@@ -203,3 +203,9 @@ config = {
     'testing': TestingConfig,
     'default': DevelopmentConfig
 }
+
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "xai/grok-2-latest")
+
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "xai/grok-2-latest")
+
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "xai/grok-2-latest")
