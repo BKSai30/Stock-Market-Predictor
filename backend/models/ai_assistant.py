@@ -142,23 +142,15 @@ class AIAssistant:
             return 'en'  # Default to English
     
     def _generate_intelligent_response(self, query: str, language: str, context: Optional[Dict[str, Any]] = None) -> str:
-        """Generate intelligent response using AI models"""
+        """Generate intelligent response using AI models - API ONLY"""
         try:
             # Create a comprehensive prompt for the AI
             system_prompt = self._create_system_prompt(language, context)
             
-            # Try multiple AI approaches
+            # Only use external APIs - no hardcoded responses
             response = None
             
-            # 1. Try local AI model first
-            try:
-                response = self._use_local_ai(query, system_prompt, language)
-                if response and len(response.strip()) > 10:
-                    return response
-            except Exception as e:
-                logger.debug(f"Local AI failed: {e}")
-            
-            # 2. Try external APIs if available
+            # Try external APIs only
             try:
                 response = self._use_external_apis(query, system_prompt, language)
                 if response and len(response.strip()) > 10:
@@ -166,14 +158,12 @@ class AIAssistant:
             except Exception as e:
                 logger.debug(f"External APIs failed: {e}")
             
-            # 3. Fallback to enhanced rule-based system
-            response = self._enhanced_rule_based_response(query, language, context)
-            
-            return response
+            # If API fails, return a simple message asking to try again
+            return "I'm having trouble connecting to the AI service. Please try again in a moment."
             
         except Exception as e:
             logger.error(f"Error in intelligent response generation: {e}")
-            return self._get_error_response()
+            return "I'm having trouble connecting to the AI service. Please try again in a moment."
     
     def _create_system_prompt(self, language: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Create a comprehensive system prompt for the AI"""
@@ -204,45 +194,9 @@ Respond naturally and helpfully to the user's question."""
         return base_prompt
     
     def _use_local_ai(self, query: str, system_prompt: str, language: str) -> str:
-        """Use local AI model for response generation"""
-        try:
-            # Enhanced local AI using pattern matching and intelligent responses
-            query_lower = query.lower().strip()
-            
-            # Greeting responses in multiple languages
-            if any(word in query_lower for word in ['hello', 'hi', 'hey', 'namaste', 'namaskar', 'bonjour', 'hola', 'ciao']):
-                greetings = {
-                    'en': "Hello! 👋 I'm your AI financial advisor. How can I help you with your investment journey today?",
-                    'hi': "नमस्ते! 👋 मैं आपका AI वित्तीय सलाहकार हूं। आज आपकी निवेश यात्रा में मैं आपकी कैसे मदद कर सकता हूं?",
-                    'te': "నమస్కారం! 👋 నేను మీ AI ఆర్థిక సలహాదారుడిని. ఈరోజు మీ పెట్టుబడి ప్రయాణంలో నేను మీకు ఎలా సహాయపడగలను?",
-                    'ta': "வணக்கம்! 👋 நான் உங்கள் AI நிதி ஆலோசகர். இன்று உங்கள் முதலீட்டு பயணத்தில் நான் உங்களுக்கு எவ்வாறு உதவ முடியும்?",
-                    'es': "¡Hola! 👋 Soy tu asesor financiero AI. ¿Cómo puedo ayudarte con tu viaje de inversión hoy?",
-                    'fr': "Bonjour! 👋 Je suis votre conseiller financier IA. Comment puis-je vous aider avec votre parcours d'investissement aujourd'hui?"
-                }
-                return greetings.get(language, greetings['en'])
-            
-            # Stock analysis responses
-            if any(word in query_lower for word in ['stock', 'share', 'price', 'analysis', 'predict', 'forecast']):
-                return self._generate_stock_analysis_response(query, language)
-            
-            # Market questions
-            if any(word in query_lower for word in ['market', 'nifty', 'sensex', 'trend', 'bull', 'bear']):
-                return self._generate_market_response(query, language)
-            
-            # Technical analysis
-            if any(word in query_lower for word in ['rsi', 'macd', 'bollinger', 'support', 'resistance', 'technical']):
-                return self._generate_technical_analysis_response(query, language)
-            
-            # Investment advice
-            if any(word in query_lower for word in ['invest', 'buy', 'sell', 'portfolio', 'diversify']):
-                return self._generate_investment_advice_response(query, language)
-            
-            # Default intelligent response
-            return self._generate_default_intelligent_response(query, language)
-            
-        except Exception as e:
-            logger.error(f"Local AI error: {e}")
-            return None
+        """Use local AI model for response generation - DISABLED to force API usage"""
+        # Return None to force external API usage
+        return None
     
     def _use_external_apis(self, query: str, system_prompt: str, language: str) -> str:
         """Use external APIs for response generation"""
@@ -267,23 +221,9 @@ Respond naturally and helpfully to the user's question."""
             return None
     
     def _enhanced_rule_based_response(self, query: str, language: str, context: Optional[Dict[str, Any]] = None) -> str:
-        """Enhanced rule-based response system"""
-        query_lower = query.lower().strip()
-        
-        # Stock-specific responses
-        if any(symbol in query_lower for symbol in ['tcs', 'reliance', 'hdfc', 'icici', 'infy', 'wipro']):
-            return self._generate_stock_specific_response(query, language)
-        
-        # Market trend responses
-        if any(word in query_lower for word in ['bull', 'bear', 'trend', 'direction']):
-            return self._generate_market_trend_response(query, language)
-        
-        # Risk assessment responses
-        if any(word in query_lower for word in ['risk', 'safe', 'volatile', 'dangerous']):
-            return self._generate_risk_assessment_response(query, language)
-        
-        # General intelligent response
-        return self._generate_general_intelligent_response(query, language)
+        """Enhanced rule-based response system - DISABLED to force API usage"""
+        # Return None to force external API usage
+        return None
     
     def _generate_stock_analysis_response(self, query: str, language: str) -> str:
         """Generate stock analysis response"""

@@ -20,8 +20,8 @@ class Config:
     PERPLEXITY_MODEL = os.environ.get('PERPLEXITY_MODEL') or 'sonar-small-online'
 
     # OpenRouter (Grok) settings
-    OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY')
-    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "x-ai/grok-4")
+    OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY') or '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'
+    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
     OPENROUTER_BASE_URL = os.environ.get('OPENROUTER_BASE_URL') or 'https://openrouter.ai/api/v1'
     
     # Data fetching settings
@@ -204,8 +204,3 @@ config = {
     'default': DevelopmentConfig
 }
 
-OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "xai/grok-2-latest")
-
-OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "xai/grok-2-latest")
-
-OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "xai/grok-2-latest")

@@ -614,7 +614,11 @@ def ask_openrouter_grok(question: str, language_hint: Optional[str] = 'en') -> O
     """Query OpenRouter Grok model with multilingual support and site-aware system prompt."""
     try:
         if not config.OPENROUTER_API_KEY:
+            logger.warning("No OpenRouter API key found")
             return None
+        
+        logger.info(f"Using model: {config.OPENROUTER_MODEL}")
+        logger.info(f"API key present: {bool(config.OPENROUTER_API_KEY)}")
         headers = {
             'Authorization': f'Bearer {config.OPENROUTER_API_KEY}',
             'HTTP-Referer': 'http://localhost',
@@ -640,11 +644,17 @@ def ask_openrouter_grok(question: str, language_hint: Optional[str] = 'en') -> O
         }
         url = f"{config.OPENROUTER_BASE_URL}/chat/completions"
         resp = requests.post(url, headers=headers, json=payload, timeout=20)
+        logger.info(f"API response status: {resp.status_code}")
         if resp.status_code == 200:
             data = resp.json()
             choices = data.get('choices') or []
+            logger.info(f"Number of choices: {len(choices)}")
             if choices:
-                return choices[0].get('message', {}).get('content')
+                content = choices[0].get('message', {}).get('content')
+                logger.info(f"Content length: {len(content) if content else 0}")
+                return content
+            else:
+                logger.warning("No choices in response")
         else:
             logger.warning(f"OpenRouter API non-200: {resp.status_code} {resp.text[:200]}")
     except Exception as e:
