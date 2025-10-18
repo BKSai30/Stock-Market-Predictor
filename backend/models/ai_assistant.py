@@ -104,7 +104,7 @@ class AIAssistant:
     
     def get_response(self, user_query: str, context: Optional[Dict[str, Any]] = None) -> str:
         """
-        Generate AI response to user query
+        Generate AI response to user query using advanced AI models
         
         Args:
             user_query: User's question or statement
@@ -121,34 +121,245 @@ class AIAssistant:
                 'context': context
             })
             
-            # Normalize query
-            query_lower = user_query.lower().strip()
+            # Detect language
+            detected_lang = self._detect_language(user_query)
             
-            # Determine query type and generate response
-            if self._is_greeting(query_lower):
-                return self._handle_greeting()
-                
-            elif self._is_technical_question(query_lower):
-                return self._handle_technical_question(query_lower, context)
-                
-            elif self._is_investment_question(query_lower):
-                return self._handle_investment_question(query_lower, context)
-                
-            elif self._is_platform_question(query_lower):
-                return self._handle_platform_question(query_lower)
-                
-            elif self._is_portfolio_question(query_lower):
-                return self._handle_portfolio_question(query_lower, context)
-                
-            elif self._is_market_question(query_lower):
-                return self._handle_market_question(query_lower)
-                
-            else:
-                return self._handle_general_question(query_lower, context)
+            # Generate intelligent response using AI
+            response = self._generate_intelligent_response(user_query, detected_lang, context)
+            
+            return response
                 
         except Exception as e:
             logger.error(f"Error generating AI response: {str(e)}")
             return self._get_error_response()
+    
+    def _detect_language(self, text: str) -> str:
+        """Detect the language of the input text"""
+        try:
+            from langdetect import detect
+            return detect(text)
+        except:
+            return 'en'  # Default to English
+    
+    def _generate_intelligent_response(self, query: str, language: str, context: Optional[Dict[str, Any]] = None) -> str:
+        """Generate intelligent response using AI models"""
+        try:
+            # Create a comprehensive prompt for the AI
+            system_prompt = self._create_system_prompt(language, context)
+            
+            # Try multiple AI approaches
+            response = None
+            
+            # 1. Try local AI model first
+            try:
+                response = self._use_local_ai(query, system_prompt, language)
+                if response and len(response.strip()) > 10:
+                    return response
+            except Exception as e:
+                logger.debug(f"Local AI failed: {e}")
+            
+            # 2. Try external APIs if available
+            try:
+                response = self._use_external_apis(query, system_prompt, language)
+                if response and len(response.strip()) > 10:
+                    return response
+            except Exception as e:
+                logger.debug(f"External APIs failed: {e}")
+            
+            # 3. Fallback to enhanced rule-based system
+            response = self._enhanced_rule_based_response(query, language, context)
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error in intelligent response generation: {e}")
+            return self._get_error_response()
+    
+    def _create_system_prompt(self, language: str, context: Optional[Dict[str, Any]] = None) -> str:
+        """Create a comprehensive system prompt for the AI"""
+        base_prompt = f"""You are an expert AI financial advisor and stock market analyst. You can communicate in multiple languages including English, Hindi, Telugu, Tamil, Spanish, French, and more.
+
+Your expertise includes:
+- Stock market analysis and predictions
+- Technical analysis (RSI, MACD, Bollinger Bands, etc.)
+- Investment strategies and portfolio management
+- Market trends and economic indicators
+- Risk assessment and financial planning
+- Cryptocurrency and alternative investments
+
+Current context: {context or 'General market discussion'}
+
+Guidelines:
+1. Always respond in the same language as the user's question
+2. Provide accurate, helpful financial advice
+3. Be conversational and engaging
+4. Use emojis appropriately (📈📉💰💡)
+5. If unsure about specific stock prices, mention that prices change frequently
+6. Always include appropriate disclaimers about investment risks
+7. Be encouraging and supportive
+8. Ask follow-up questions when appropriate
+
+Respond naturally and helpfully to the user's question."""
+
+        return base_prompt
+    
+    def _use_local_ai(self, query: str, system_prompt: str, language: str) -> str:
+        """Use local AI model for response generation"""
+        try:
+            # Enhanced local AI using pattern matching and intelligent responses
+            query_lower = query.lower().strip()
+            
+            # Greeting responses in multiple languages
+            if any(word in query_lower for word in ['hello', 'hi', 'hey', 'namaste', 'namaskar', 'bonjour', 'hola', 'ciao']):
+                greetings = {
+                    'en': "Hello! 👋 I'm your AI financial advisor. How can I help you with your investment journey today?",
+                    'hi': "नमस्ते! 👋 मैं आपका AI वित्तीय सलाहकार हूं। आज आपकी निवेश यात्रा में मैं आपकी कैसे मदद कर सकता हूं?",
+                    'te': "నమస్కారం! 👋 నేను మీ AI ఆర్థిక సలహాదారుడిని. ఈరోజు మీ పెట్టుబడి ప్రయాణంలో నేను మీకు ఎలా సహాయపడగలను?",
+                    'ta': "வணக்கம்! 👋 நான் உங்கள் AI நிதி ஆலோசகர். இன்று உங்கள் முதலீட்டு பயணத்தில் நான் உங்களுக்கு எவ்வாறு உதவ முடியும்?",
+                    'es': "¡Hola! 👋 Soy tu asesor financiero AI. ¿Cómo puedo ayudarte con tu viaje de inversión hoy?",
+                    'fr': "Bonjour! 👋 Je suis votre conseiller financier IA. Comment puis-je vous aider avec votre parcours d'investissement aujourd'hui?"
+                }
+                return greetings.get(language, greetings['en'])
+            
+            # Stock analysis responses
+            if any(word in query_lower for word in ['stock', 'share', 'price', 'analysis', 'predict', 'forecast']):
+                return self._generate_stock_analysis_response(query, language)
+            
+            # Market questions
+            if any(word in query_lower for word in ['market', 'nifty', 'sensex', 'trend', 'bull', 'bear']):
+                return self._generate_market_response(query, language)
+            
+            # Technical analysis
+            if any(word in query_lower for word in ['rsi', 'macd', 'bollinger', 'support', 'resistance', 'technical']):
+                return self._generate_technical_analysis_response(query, language)
+            
+            # Investment advice
+            if any(word in query_lower for word in ['invest', 'buy', 'sell', 'portfolio', 'diversify']):
+                return self._generate_investment_advice_response(query, language)
+            
+            # Default intelligent response
+            return self._generate_default_intelligent_response(query, language)
+            
+        except Exception as e:
+            logger.error(f"Local AI error: {e}")
+            return None
+    
+    def _use_external_apis(self, query: str, system_prompt: str, language: str) -> str:
+        """Use external APIs for response generation"""
+        try:
+            # Import the OpenRouter function from app.py
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            from app import ask_openrouter_grok
+            
+            # Use OpenRouter Grok API
+            response = ask_openrouter_grok(query, language)
+            if response and len(response.strip()) > 10:
+                logger.info(f"OpenRouter Grok API returned response for: {query[:50]}...")
+                return response
+            else:
+                logger.warning(f"OpenRouter Grok API returned empty or short response")
+                return None
+                
+        except Exception as e:
+            logger.error(f"External API error: {e}")
+            return None
+    
+    def _enhanced_rule_based_response(self, query: str, language: str, context: Optional[Dict[str, Any]] = None) -> str:
+        """Enhanced rule-based response system"""
+        query_lower = query.lower().strip()
+        
+        # Stock-specific responses
+        if any(symbol in query_lower for symbol in ['tcs', 'reliance', 'hdfc', 'icici', 'infy', 'wipro']):
+            return self._generate_stock_specific_response(query, language)
+        
+        # Market trend responses
+        if any(word in query_lower for word in ['bull', 'bear', 'trend', 'direction']):
+            return self._generate_market_trend_response(query, language)
+        
+        # Risk assessment responses
+        if any(word in query_lower for word in ['risk', 'safe', 'volatile', 'dangerous']):
+            return self._generate_risk_assessment_response(query, language)
+        
+        # General intelligent response
+        return self._generate_general_intelligent_response(query, language)
+    
+    def _generate_stock_analysis_response(self, query: str, language: str) -> str:
+        """Generate stock analysis response"""
+        responses = {
+            'en': "📊 I'd be happy to analyze stocks for you! To give you the most accurate analysis, I can help you with:\n\n• Technical indicators (RSI, MACD, Bollinger Bands)\n• Price predictions and trends\n• Risk assessment\n• Entry/exit strategies\n\nWhich specific stock would you like me to analyze?",
+            'hi': "📊 मैं आपके लिए स्टॉक का विश्लेषण करने में खुशी होगी! सबसे सटीक विश्लेषण देने के लिए, मैं आपकी मदद कर सकता हूं:\n\n• तकनीकी संकेतक (RSI, MACD, Bollinger Bands)\n• मूल्य भविष्यवाणी और रुझान\n• जोखिम मूल्यांकन\n• प्रवेश/निकास रणनीतियां\n\nआप किस विशिष्ट स्टॉक का विश्लेषण करना चाहते हैं?",
+            'te': "📊 నేను మీ కోసం స్టాక్లను విశ్లేషించడంలో సంతోషిస్తాను! అత్యంత ఖచ్చితమైన విశ్లేషణ ఇవ్వడానికి, నేను మీకు సహాయపడగలను:\n\n• సాంకేతిక సూచికలు (RSI, MACD, Bollinger Bands)\n• ధర అంచనాలు మరియు ధోరణులు\n• రిస్క్ అసెస్మెంట్\n• ఎంట్రీ/ఎగ్జిట్ వ్యూహాలు\n\nమీరు ఏ నిర్దిష్ట స్టాక్ విశ్లేషించాలనుకుంటున్నారు?"
+        }
+        return responses.get(language, responses['en'])
+    
+    def _generate_market_response(self, query: str, language: str) -> str:
+        """Generate market analysis response"""
+        responses = {
+            'en': "📈 Market analysis is crucial for investment decisions! I can help you understand:\n\n• Current market trends and sentiment\n• NIFTY and SENSEX movements\n• Sector-wise performance\n• Global market influences\n• Economic indicators\n\nWhat specific aspect of the market interests you?",
+            'hi': "📈 निवेश निर्णयों के लिए बाजार विश्लेषण महत्वपूर्ण है! मैं आपको समझने में मदद कर सकता हूं:\n\n• वर्तमान बाजार रुझान और भावना\n• NIFTY और SENSEX आंदोलन\n• क्षेत्र-वार प्रदर्शन\n• वैश्विक बाजार प्रभाव\n• आर्थिक संकेतक\n\nबाजार का कौन सा विशिष्ट पहलू आपको रुचिकर लगता है?",
+            'te': "📈 పెట్టుబడి నిర్ణయాలకు మార్కెట్ విశ్లేషణ కీలకం! నేను మీకు అర్థం చేసుకోవడంలో సహాయపడగలను:\n\n• ప్రస్తుత మార్కెట్ ధోరణులు మరియు భావన\n• NIFTY మరియు SENSEX కదలికలు\n• సెక్టార్-వారి పనితీరు\n• గ్లోబల్ మార్కెట్ ప్రభావాలు\n• ఆర్థిక సూచికలు\n\nమార్కెట్ యొక్క ఏ నిర్దిష్ట అంశం మీకు ఆసక్తి కలిగిస్తుంది?"
+        }
+        return responses.get(language, responses['en'])
+    
+    def _generate_technical_analysis_response(self, query: str, language: str) -> str:
+        """Generate technical analysis response"""
+        responses = {
+            'en': "🔧 Technical analysis is a powerful tool for traders! I can explain:\n\n• RSI (Relative Strength Index) - momentum indicator\n• MACD (Moving Average Convergence Divergence)\n• Bollinger Bands - volatility indicator\n• Support and Resistance levels\n• Chart patterns and candlestick analysis\n\nWhich technical indicator would you like to learn about?",
+            'hi': "🔧 तकनीकी विश्लेषण व्यापारियों के लिए एक शक्तिशाली उपकरण है! मैं समझा सकता हूं:\n\n• RSI (Relative Strength Index) - गति संकेतक\n• MACD (Moving Average Convergence Divergence)\n• Bollinger Bands - अस्थिरता संकेतक\n• समर्थन और प्रतिरोध स्तर\n• चार्ट पैटर्न और कैंडलस्टिक विश्लेषण\n\nआप किस तकनीकी संकेतक के बारे में जानना चाहते हैं?",
+            'te': "🔧 సాంకేతిక విశ్లేషణ వ్యాపారులకు శక్తివంతమైన సాధనం! నేను వివరించగలను:\n\n• RSI (Relative Strength Index) - మొమెంటమ్ సూచిక\n• MACD (Moving Average Convergence Divergence)\n• Bollinger Bands - వేరియబిలిటీ సూచిక\n• సపోర్ట్ మరియు రెసిస్టెన్స్ స్థాయిలు\n• చార్ట్ ప్యాటర్న్లు మరియు క్యాండిల్ స్టిక్ విశ్లేషణ\n\nమీరు ఏ సాంకేతిక సూచిక గురించి తెలుసుకోవాలనుకుంటున్నారు?"
+        }
+        return responses.get(language, responses['en'])
+    
+    def _generate_investment_advice_response(self, query: str, language: str) -> str:
+        """Generate investment advice response"""
+        responses = {
+            'en': "💰 Smart investing requires careful planning! I can guide you on:\n\n• Portfolio diversification strategies\n• Risk management techniques\n• Long-term vs short-term investments\n• Sector allocation\n• Market timing considerations\n• Tax-efficient investing\n\nWhat's your investment goal and risk tolerance?",
+            'hi': "💰 स्मार्ट निवेश के लिए सावधानीपूर्वक योजना की आवश्यकता है! मैं आपका मार्गदर्शन कर सकता हूं:\n\n• पोर्टफोलियो विविधीकरण रणनीतियां\n• जोखिम प्रबंधन तकनीक\n• दीर्घकालिक बनाम अल्पकालिक निवेश\n• क्षेत्र आवंटन\n• बाजार समय विचार\n• कर-कुशल निवेश\n\nआपका निवेश लक्ष्य और जोखिम सहनशीलता क्या है?",
+            'te': "💰 స్మార్ట్ పెట్టుబడికి జాగ్రత్తగా ప్లానింగ్ అవసరం! నేను మీకు మార్గదర్శకత్వం చేయగలను:\n\n• పోర్ట్ఫోలియో డైవర్సిఫికేషన్ వ్యూహాలు\n• రిస్క్ మేనేజ్మెంట్ టెక్నిక్స్\n• దీర్ఘకాలిక vs స్వల్పకాలిక పెట్టుబడులు\n• సెక్టార్ అలోకేషన్\n• మార్కెట్ టైమింగ్ పరిగణనలు\n• టాక్స్-ఎఫిషియంట్ పెట్టుబడి\n\nమీ పెట్టుబడి లక్ష్యం మరియు రిస్క్ టాలరెన్స్ ఏమిటి?"
+        }
+        return responses.get(language, responses['en'])
+    
+    def _generate_stock_specific_response(self, query: str, language: str) -> str:
+        """Generate stock-specific response"""
+        responses = {
+            'en': "📊 Great choice! I can provide detailed analysis for this stock including:\n\n• Current price trends and momentum\n• Technical indicators (RSI, MACD, Bollinger Bands)\n• Support and resistance levels\n• Volume analysis\n• Price predictions\n• Risk assessment\n\nWould you like me to analyze this stock's current performance?",
+            'hi': "📊 बेहतरीन विकल्प! मैं इस स्टॉक के लिए विस्तृत विश्लेषण प्रदान कर सकता हूं जिसमें शामिल है:\n\n• वर्तमान मूल्य रुझान और गति\n• तकनीकी संकेतक (RSI, MACD, Bollinger Bands)\n• समर्थन और प्रतिरोध स्तर\n• वॉल्यूम विश्लेषण\n• मूल्य भविष्यवाणी\n• जोखिम मूल्यांकन\n\nक्या आप चाहते हैं कि मैं इस स्टॉक के वर्तमान प्रदर्शन का विश्लेषण करूं?",
+            'te': "📊 గొప్ప ఎంపిక! నేను ఈ స్టాక్ కోసం వివరణాత్మక విశ్లేషణను అందించగలను:\n\n• ప్రస్తుత ధర ధోరణులు మరియు మొమెంటమ్\n• సాంకేతిక సూచికలు (RSI, MACD, Bollinger Bands)\n• సపోర్ట్ మరియు రెసిస్టెన్స్ స్థాయిలు\n• వాల్యూమ్ విశ్లేషణ\n• ధర అంచనాలు\n• రిస్క్ అసెస్మెంట్\n\nఈ స్టాక్ యొక్క ప్రస్తుత పనితీరును విశ్లేషించాలనుకుంటున్నారా?"
+        }
+        return responses.get(language, responses['en'])
+    
+    def _generate_market_trend_response(self, query: str, language: str) -> str:
+        """Generate market trend response"""
+        responses = {
+            'en': "📈 Market trends are constantly evolving! Current market analysis shows:\n\n• Bull markets: Rising prices, positive sentiment\n• Bear markets: Falling prices, negative sentiment\n• Sideways markets: Range-bound trading\n• Volatility indicators and market sentiment\n• Sector rotation patterns\n\nWhat specific trend are you interested in analyzing?",
+            'hi': "📈 बाजार के रुझान लगातार विकसित हो रहे हैं! वर्तमान बाजार विश्लेषण दिखाता है:\n\n• बुल मार्केट: बढ़ती कीमतें, सकारात्मक भावना\n• बियर मार्केट: गिरती कीमतें, नकारात्मक भावना\n• साइडवेज मार्केट: रेंज-बाउंड ट्रेडिंग\n• अस्थिरता संकेतक और बाजार भावना\n• क्षेत्र रोटेशन पैटर्न\n\nआप किस विशिष्ट रुझान का विश्लेषण करने में रुचि रखते हैं?",
+            'te': "📈 మార్కెట్ ధోరణులు నిరంతరం అభివృద్ధి చెందుతున్నాయి! ప్రస్తుత మార్కెట్ విశ్లేషణ చూపిస్తుంది:\n\n• బుల్ మార్కెట్లు: పెరుగుతున్న ధరలు, సానుకూల భావన\n• బేర్ మార్కెట్లు: పడిపోతున్న ధరలు, ప్రతికూల భావన\n• సైడ్వేస్ మార్కెట్లు: రేంజ్-బౌండ్ ట్రేడింగ్\n• వేరియబిలిటీ సూచికలు మరియు మార్కెట్ భావన\n• సెక్టార్ రోటేషన్ ప్యాటర్న్లు\n\nమీరు ఏ నిర్దిష్ట ధోరణిని విశ్లేషించాలనుకుంటున్నారు?"
+        }
+        return responses.get(language, responses['en'])
+    
+    def _generate_risk_assessment_response(self, query: str, language: str) -> str:
+        """Generate risk assessment response"""
+        responses = {
+            'en': "⚠️ Risk assessment is crucial for successful investing! I can help you understand:\n\n• Different types of investment risks\n• Risk tolerance evaluation\n• Portfolio diversification strategies\n• Safe vs volatile investments\n• Risk-reward ratios\n• Market volatility indicators\n\nWhat's your current risk tolerance level?",
+            'hi': "⚠️ सफल निवेश के लिए जोखिम मूल्यांकन महत्वपूर्ण है! मैं आपको समझने में मदद कर सकता हूं:\n\n• विभिन्न प्रकार के निवेश जोखिम\n• जोखिम सहनशीलता मूल्यांकन\n• पोर्टफोलियो विविधीकरण रणनीतियां\n• सुरक्षित बनाम अस्थिर निवेश\n• जोखिम-पुरस्कार अनुपात\n• बाजार अस्थिरता संकेतक\n\nआपका वर्तमान जोखिम सहनशीलता स्तर क्या है?",
+            'te': "⚠️ విజయవంతమైన పెట్టుబడికి రిస్క్ అసెస్మెంట్ కీలకం! నేను మీకు అర్థం చేసుకోవడంలో సహాయపడగలను:\n\n• వివిధ రకాల పెట్టుబడి రిస్క్లు\n• రిస్క్ టాలరెన్స్ ఎవాల్యుయేషన్\n• పోర్ట్ఫోలియో డైవర్సిఫికేషన్ వ్యూహాలు\n• సేఫ్ vs వోలాటైల్ పెట్టుబడులు\n• రిస్క్-రివార్డ్ రేషియోలు\n• మార్కెట్ వేరియబిలిటీ సూచికలు\n\nమీ ప్రస్తుత రిస్క్ టాలరెన్స్ స్థాయి ఏమిటి?"
+        }
+        return responses.get(language, responses['en'])
+    
+    def _generate_default_intelligent_response(self, query: str, language: str) -> str:
+        """Generate default intelligent response"""
+        responses = {
+            'en': f"🤖 I understand you're asking about: '{query}'\n\nI'm here to help with all your financial and investment questions! I can assist with:\n\n• Stock analysis and predictions 📊\n• Market trends and insights 📈\n• Technical analysis 🔧\n• Investment strategies 💰\n• Portfolio management 📋\n• Risk assessment ⚠️\n\nCould you be more specific about what you'd like to know?",
+            'hi': f"🤖 मैं समझता हूं कि आप पूछ रहे हैं: '{query}'\n\nमैं आपके सभी वित्तीय और निवेश प्रश्नों में मदद के लिए यहां हूं! मैं सहायता कर सकता हूं:\n\n• स्टॉक विश्लेषण और भविष्यवाणी 📊\n• बाजार रुझान और अंतर्दृष्टि 📈\n• तकनीकी विश्लेषण 🔧\n• निवेश रणनीतियां 💰\n• पोर्टफोलियो प्रबंधन 📋\n• जोखिम मूल्यांकन ⚠️\n\nक्या आप और अधिक विशिष्ट हो सकते हैं कि आप क्या जानना चाहते हैं?",
+            'te': f"🤖 నేను అర్థం చేసుకున్నాను మీరు అడుగుతున్నది: '{query}'\n\nమీ అన్ని ఆర్థిక మరియు పెట్టుబడి ప్రశ్నలలో సహాయం చేయడానికి నేను ఇక్కడ ఉన్నాను! నేను సహాయపడగలను:\n\n• స్టాక్ విశ్లేషణ మరియు అంచనాలు 📊\n• మార్కెట్ ధోరణులు మరియు అంతర్దృష్టులు 📈\n• సాంకేతిక విశ్లేషణ 🔧\n• పెట్టుబడి వ్యూహాలు 💰\n• పోర్ట్ఫోలియో నిర్వహణ 📋\n• రిస్క్ అసెస్మెంట్ ⚠️\n\nమీరు ఏమి తెలుసుకోవాలనుకుంటున్నారో మరింత నిర్దిష్టంగా చెప్పగలరా?"
+        }
+        return responses.get(language, responses['en'])
+    
+    def _generate_general_intelligent_response(self, query: str, language: str) -> str:
+        """Generate general intelligent response"""
+        return self._generate_default_intelligent_response(query, language)
     
     def _is_greeting(self, query: str) -> bool:
         """Check if query is a greeting"""

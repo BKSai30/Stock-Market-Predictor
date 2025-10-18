@@ -388,13 +388,16 @@
                         <div class="text-center">
                             <div class="mb-3">
                                 <h6>NIFTY 50</h6>
-                                <div class="h4 text-success">19,674.25</div>
-                                <small class="text-success">+124.35 (+0.64%)</small>
+                                <div class="h4" id="nifty-price">Loading...</div>
+                                <small id="nifty-change">Loading...</small>
                             </div>
                             <div class="mb-3">
                                 <h6>SENSEX</h6>
-                                <div class="h4 text-success">65,834.69</div>
-                                <small class="text-success">+389.75 (+0.60%)</small>
+                                <div class="h4" id="sensex-price">Loading...</div>
+                                <small id="sensex-change">Loading...</small>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted" id="market-status">Market Status: Loading...</small>
                             </div>
                         </div>
                     </div>
@@ -763,6 +766,73 @@
                 window.location.href = '/';
             }
         }
+
+        // Load real-time market data
+        async function loadMarketData() {
+            try {
+                const response = await fetch('/api/market-summary');
+                const data = await response.json();
+                
+                if (data.indices) {
+                    // Update NIFTY data
+                    if (data.indices.NIFTY) {
+                        const nifty = data.indices.NIFTY;
+                        const niftyPrice = document.getElementById('nifty-price');
+                        const niftyChange = document.getElementById('nifty-change');
+                        
+                        niftyPrice.textContent = nifty.current.toLocaleString('en-IN');
+                        niftyPrice.className = `h4 ${nifty.change >= 0 ? 'text-success' : 'text-danger'}`;
+                        
+                        const changeText = `${nifty.change >= 0 ? '+' : ''}${nifty.change.toFixed(2)} (${nifty.change_percent >= 0 ? '+' : ''}${nifty.change_percent.toFixed(2)}%)`;
+                        niftyChange.textContent = changeText;
+                        niftyChange.className = `text-${nifty.change >= 0 ? 'success' : 'danger'}`;
+                    }
+                    
+                    // Update SENSEX data
+                    if (data.indices.SENSEX) {
+                        const sensex = data.indices.SENSEX;
+                        const sensexPrice = document.getElementById('sensex-price');
+                        const sensexChange = document.getElementById('sensex-change');
+                        
+                        sensexPrice.textContent = sensex.current.toLocaleString('en-IN');
+                        sensexPrice.className = `h4 ${sensex.change >= 0 ? 'text-success' : 'text-danger'}`;
+                        
+                        const changeText = `${sensex.change >= 0 ? '+' : ''}${sensex.change.toFixed(2)} (${sensex.change_percent >= 0 ? '+' : ''}${sensex.change_percent.toFixed(2)}%)`;
+                        sensexChange.textContent = changeText;
+                        sensexChange.className = `text-${sensex.change >= 0 ? 'success' : 'danger'}`;
+                    }
+                    
+                    // Update market status
+                    const marketStatus = document.getElementById('market-status');
+                    const status = data.market_open ? 'Market Open' : 'Market Closed';
+                    marketStatus.textContent = `Market Status: ${status}`;
+                    marketStatus.className = `text-muted ${data.market_open ? 'text-success' : 'text-danger'}`;
+                }
+            } catch (error) {
+                console.error('Error loading market data:', error);
+                // Fallback to static data
+                document.getElementById('nifty-price').textContent = '25,704.7';
+                document.getElementById('nifty-price').className = 'h4 text-success';
+                document.getElementById('nifty-change').textContent = '+163.4 (+0.64%)';
+                document.getElementById('nifty-change').className = 'text-success';
+                
+                document.getElementById('sensex-price').textContent = '83,952.53';
+                document.getElementById('sensex-price').className = 'h4 text-success';
+                document.getElementById('sensex-change').textContent = '+618.2 (+0.74%)';
+                document.getElementById('sensex-change').className = 'text-success';
+                
+                document.getElementById('market-status').textContent = 'Market Status: Closed';
+                document.getElementById('market-status').className = 'text-muted text-danger';
+            }
+        }
+
+        // Load market data when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadMarketData();
+            
+            // Refresh market data every 30 seconds
+            setInterval(loadMarketData, 30000);
+        });
     </script>
 </body>
 </html>

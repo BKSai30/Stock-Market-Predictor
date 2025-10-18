@@ -419,6 +419,188 @@
             border-style: solid;
             border-color: #333 transparent transparent transparent;
         }
+
+        /* Voice Feature Styles */
+        .voice-activity-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            display: none;
+        }
+
+        .pulse-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            border: 3px solid #007bff;
+            border-radius: 50%;
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        .pulse-ring:nth-child(2) {
+            animation-delay: 0.5s;
+        }
+
+        .pulse-ring:nth-child(3) {
+            animation-delay: 1s;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                transform: translate(-50%, -50%) scale(0.33);
+                opacity: 1;
+            }
+            80%, 100% {
+                transform: translate(-50%, -50%) scale(1.2);
+                opacity: 0;
+            }
+        }
+
+        .interim-transcript {
+            background: rgba(0, 123, 255, 0.1);
+            border: 1px solid rgba(0, 123, 255, 0.3);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin: 5px 0;
+            font-style: italic;
+            color: #007bff;
+            transition: opacity 0.3s ease;
+        }
+
+        .voice-settings-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            z-index: 10000;
+            width: 400px;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .voice-settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .voice-settings-header h6 {
+            margin: 0;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .voice-settings-content {
+            padding: 20px;
+        }
+
+        .voice-settings-panel .form-label {
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .voice-settings-panel .form-range {
+            margin-top: 5px;
+        }
+
+        .voice-settings-panel .form-check-label {
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        /* Voice button animations */
+        .btn[title*="voice"] {
+            transition: all 0.3s ease;
+        }
+
+        .btn[title*="voice"]:hover {
+            transform: scale(1.05);
+        }
+
+        .btn[title*="voice"].btn-primary {
+            animation: voice-active 2s ease-in-out infinite;
+        }
+
+        @keyframes voice-active {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
+            }
+        }
+
+        /* Voice command feedback */
+        .voice-command-feedback {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            z-index: 9998;
+            animation: slideInRight 0.3s ease;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Dark theme voice styles */
+        [data-theme="dark"] .voice-settings-panel {
+            background: var(--bg-primary);
+            border-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .voice-settings-header {
+            background: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .interim-transcript {
+            background: rgba(0, 123, 255, 0.2);
+            border-color: rgba(0, 123, 255, 0.4);
+        }
+
+        /* Mobile responsive voice styles */
+        @media (max-width: 768px) {
+            .voice-settings-panel {
+                width: 95vw;
+                margin: 10px;
+            }
+            
+            .voice-activity-indicator {
+                top: 40%;
+            }
+            
+            .pulse-ring {
+                width: 50px;
+                height: 50px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1778,6 +1960,11 @@
                     speakText(aiText);
                 }
                 
+                // Check for stock prediction in response and announce it
+                if (aiText.includes('prediction') || aiText.includes('price target') || aiText.includes('recommendation')) {
+                    announceStockPrediction(aiText);
+                }
+                
             } catch (error) {
                 typingDiv.remove();
                 addChatMessage('Sorry, I encountered an error while searching for information. Please try again.', 'ai');
@@ -1805,71 +1992,283 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        // --- Voice input via Web Speech API ---
+        // --- Enhanced Voice input via Web Speech API ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
         let recognizing = false;
+        let isContinuousMode = false;
+        let voiceActivityTimeout;
         const micBtn = document.getElementById('aiMicBtn');
         const langSelect = document.getElementById('aiLangSelect');
         const speakToggle = document.getElementById('aiSpeakToggle');
         let ttsEnabled = false;
+        let currentUtterance = null;
+
+        // Voice settings
+        const voiceSettings = {
+            continuous: false,
+            interimResults: true,
+            maxAlternatives: 3,
+            confidence: 0.7,
+            timeout: 5000,
+            volume: 1.0,
+            rate: 1.0,
+            pitch: 1.0
+        };
+
+        // Voice command shortcuts
+        const voiceCommands = {
+            'predict': () => document.getElementById('stockSymbol').focus(),
+            'portfolio': () => window.location.href = '/portfolio',
+            'news': () => window.location.href = '/news',
+            'dashboard': () => window.location.href = '/',
+            'help': () => showVoiceHelp(),
+            'clear': () => document.getElementById('aiChatMessages').innerHTML = '',
+            'stop': () => stopSpeaking()
+        };
 
         if (micBtn) {
             micBtn.addEventListener('click', () => {
                 if (!SpeechRecognition) {
-                    showToast('Notice', 'Voice input not supported in this browser.', 'warning');
+                    showToast('Notice', 'Voice input not supported in this browser. Please use Chrome or Edge.', 'warning');
                     return;
                 }
+                
                 if (!recognition) {
-                    recognition = new SpeechRecognition();
-                    recognition.continuous = false;
-                    recognition.interimResults = false;
-                    recognition.maxAlternatives = 1;
+                    initializeSpeechRecognition();
                 }
-                // Set language
-                const sel = langSelect ? langSelect.value : 'auto';
-                recognition.lang = sel === 'auto' ? 'en-US' : mapLangToBCP47(sel);
 
                 if (!recognizing) {
-                    recognizing = true;
-                    micBtn.classList.add('btn-primary');
-                    micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
-                    recognition.start();
+                    startVoiceRecognition();
                 } else {
-                    recognizing = false;
-                    micBtn.classList.remove('btn-primary');
-                    micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-                    recognition.stop();
+                    stopVoiceRecognition();
                 }
+            });
 
-                recognition.onresult = (event) => {
-                    const transcript = event.results[0][0].transcript;
-                    recognizing = false;
-                    micBtn.classList.remove('btn-primary');
-                    micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-                    const input = document.getElementById('aiChatInput');
-                    input.value = transcript;
-                    // Auto-submit
-                    document.getElementById('aiChatForm').dispatchEvent(new Event('submit'));
-                };
-                recognition.onerror = () => {
-                    recognizing = false;
-                    micBtn.classList.remove('btn-primary');
-                    micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-                };
-                recognition.onend = () => {
-                    recognizing = false;
-                    micBtn.classList.remove('btn-primary');
-                    micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-                };
+            // Add long press for continuous mode
+            let pressTimer;
+            micBtn.addEventListener('mousedown', () => {
+                pressTimer = setTimeout(() => {
+                    if (!recognizing) {
+                        isContinuousMode = true;
+                        showToast('Info', 'Continuous mode activated. Say "stop listening" to end.', 'info');
+                        startVoiceRecognition();
+                    }
+                }, 1000);
+            });
+
+            micBtn.addEventListener('mouseup', () => {
+                clearTimeout(pressTimer);
+            });
+
+            micBtn.addEventListener('mouseleave', () => {
+                clearTimeout(pressTimer);
             });
         }
 
-        // --- Text-to-speech ---
+        function initializeSpeechRecognition() {
+            recognition = new SpeechRecognition();
+            recognition.continuous = voiceSettings.continuous;
+            recognition.interimResults = voiceSettings.interimResults;
+            recognition.maxAlternatives = voiceSettings.maxAlternatives;
+            
+            // Set language
+            const sel = langSelect ? langSelect.value : 'auto';
+            recognition.lang = sel === 'auto' ? 'en-US' : mapLangToBCP47(sel);
+
+            recognition.onstart = () => {
+                recognizing = true;
+                updateMicButton(true);
+                showVoiceActivityIndicator(true);
+                console.log('Voice recognition started');
+            };
+
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    const confidence = event.results[i][0].confidence;
+                    
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                // Show interim results
+                if (interimTranscript) {
+                    updateInterimTranscript(interimTranscript);
+                }
+
+                // Process final results
+                if (finalTranscript) {
+                    processVoiceInput(finalTranscript);
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                handleVoiceError(event.error);
+            };
+
+            recognition.onend = () => {
+                recognizing = false;
+                updateMicButton(false);
+                showVoiceActivityIndicator(false);
+                clearInterimTranscript();
+                
+                if (isContinuousMode) {
+                    // Restart recognition in continuous mode
+                    setTimeout(() => {
+                        if (isContinuousMode) {
+                            recognition.start();
+                        }
+                    }, 100);
+                }
+            };
+        }
+
+        function startVoiceRecognition() {
+            try {
+                recognition.start();
+                showToast('Info', 'Listening... Speak now!', 'info');
+            } catch (error) {
+                console.error('Error starting recognition:', error);
+                showToast('Error', 'Could not start voice recognition. Please try again.', 'error');
+            }
+        }
+
+        function stopVoiceRecognition() {
+            recognizing = false;
+            isContinuousMode = false;
+            recognition.stop();
+            updateMicButton(false);
+            showVoiceActivityIndicator(false);
+            clearInterimTranscript();
+        }
+
+        function processVoiceInput(transcript) {
+            const input = document.getElementById('aiChatInput');
+            const lowerTranscript = transcript.toLowerCase().trim();
+            
+            // Check for voice commands first
+            for (const [command, action] of Object.entries(enhancedVoiceCommands)) {
+                if (lowerTranscript.includes(command)) {
+                    if (typeof action === 'function') {
+                        action();
+                    }
+                    showToast('Voice Command', `Executed: ${command}`, 'success');
+                    return;
+                }
+            }
+
+            // Check for continuous mode stop command
+            if (lowerTranscript.includes('stop listening') || lowerTranscript.includes('stop voice')) {
+                stopVoiceRecognition();
+                showToast('Voice', 'Voice recognition stopped', 'info');
+                return;
+            }
+
+            // Regular chat input
+            input.value = transcript;
+            
+            // Auto-submit for non-continuous mode
+            if (!isContinuousMode) {
+                document.getElementById('aiChatForm').dispatchEvent(new Event('submit'));
+            }
+        }
+
+        function updateMicButton(isActive) {
+            if (isActive) {
+                micBtn.classList.add('btn-primary');
+                micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+                micBtn.title = 'Click to stop listening';
+            } else {
+                micBtn.classList.remove('btn-primary');
+                micBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+                micBtn.title = 'Click to start voice input (hold for continuous mode)';
+            }
+        }
+
+        function showVoiceActivityIndicator(show) {
+            let indicator = document.getElementById('voiceActivityIndicator');
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'voiceActivityIndicator';
+                indicator.className = 'voice-activity-indicator';
+                indicator.innerHTML = '<div class="pulse-ring"></div><div class="pulse-ring"></div><div class="pulse-ring"></div>';
+                document.body.appendChild(indicator);
+            }
+            
+            indicator.style.display = show ? 'block' : 'none';
+        }
+
+        function updateInterimTranscript(text) {
+            let interimDiv = document.getElementById('interimTranscript');
+            if (!interimDiv) {
+                interimDiv = document.createElement('div');
+                interimDiv.id = 'interimTranscript';
+                interimDiv.className = 'interim-transcript';
+                document.getElementById('aiChatMessages').appendChild(interimDiv);
+            }
+            interimDiv.textContent = text;
+            interimDiv.style.opacity = '0.6';
+        }
+
+        function clearInterimTranscript() {
+            const interimDiv = document.getElementById('interimTranscript');
+            if (interimDiv) {
+                interimDiv.remove();
+            }
+        }
+
+        function handleVoiceError(error) {
+            recognizing = false;
+            updateMicButton(false);
+            showVoiceActivityIndicator(false);
+            clearInterimTranscript();
+            
+            let errorMessage = 'Voice recognition error occurred.';
+            switch (error) {
+                case 'no-speech':
+                    errorMessage = 'No speech detected. Please try again.';
+                    break;
+                case 'audio-capture':
+                    errorMessage = 'Microphone not accessible. Please check permissions.';
+                    break;
+                case 'not-allowed':
+                    errorMessage = 'Microphone permission denied. Please allow microphone access.';
+                    break;
+                case 'network':
+                    errorMessage = 'Network error. Please check your connection.';
+                    break;
+                case 'aborted':
+                    errorMessage = 'Voice recognition was aborted.';
+                    break;
+            }
+            
+            showToast('Voice Error', errorMessage, 'error');
+        }
+
+        // --- Enhanced Text-to-speech ---
         let voices = [];
+        let currentVoice = null;
+        let ttsQueue = [];
+        let isSpeaking = false;
+
         function loadVoices() {
             voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+            console.log('Loaded voices:', voices.length);
+            
+            // Set default voice preferences
+            if (voices.length > 0) {
+                currentVoice = pickBestVoice();
+            }
         }
+
         if ('speechSynthesis' in window) {
             loadVoices();
             window.speechSynthesis.onvoiceschanged = loadVoices;
@@ -1879,20 +2278,161 @@
             speakToggle.addEventListener('click', () => {
                 ttsEnabled = !ttsEnabled;
                 speakToggle.classList.toggle('btn-primary', ttsEnabled);
+                speakToggle.title = ttsEnabled ? 'Voice replies enabled' : 'Voice replies disabled';
+                
+                if (ttsEnabled) {
+                    showToast('Voice', 'Voice replies enabled', 'success');
+                } else {
+                    stopSpeaking();
+                    showToast('Voice', 'Voice replies disabled', 'info');
+                }
             });
         }
 
-        function speakText(text) {
-            if (!('speechSynthesis' in window)) return;
-            const utter = new SpeechSynthesisUtterance(text);
+        function speakText(text, options = {}) {
+            if (!ttsEnabled || !text) return;
+            
+            // Clean text for better speech
+            const cleanText = cleanTextForSpeech(text);
+            
+            // Add to queue if already speaking
+            if (isSpeaking && !options.interrupt) {
+                ttsQueue.push({ text: cleanText, options });
+                return;
+            }
+            
+            // Stop current speech if interrupting
+            if (options.interrupt) {
+                stopSpeaking();
+            }
+            
+            const utter = new SpeechSynthesisUtterance(cleanText);
+            currentUtterance = utter;
+            
+            // Voice settings
             const sel = langSelect ? langSelect.value : 'auto';
             const langTag = sel === 'auto' ? detectLanguageTag(text) : mapLangToBCP47(sel);
             utter.lang = langTag;
+            
             const voice = pickVoiceForLang(langTag);
-            if (voice) utter.voice = voice;
-            utter.rate = 1.0;
-            utter.pitch = 1.0;
+            if (voice) {
+                utter.voice = voice;
+                currentVoice = voice;
+            }
+            
+            // Audio settings
+            utter.rate = options.rate || voiceSettings.rate;
+            utter.pitch = options.pitch || voiceSettings.pitch;
+            utter.volume = options.volume || voiceSettings.volume;
+            
+            // Event handlers
+            utter.onstart = () => {
+                isSpeaking = true;
+                updateSpeakButton(true);
+                console.log('Started speaking:', cleanText.substring(0, 50) + '...');
+            };
+            
+            utter.onend = () => {
+                isSpeaking = false;
+                updateSpeakButton(false);
+                currentUtterance = null;
+                
+                // Process queue
+                if (ttsQueue.length > 0) {
+                    const next = ttsQueue.shift();
+                    setTimeout(() => speakText(next.text, next.options), 100);
+                }
+            };
+            
+            utter.onerror = (event) => {
+                console.error('TTS Error:', event.error);
+                isSpeaking = false;
+                updateSpeakButton(false);
+                currentUtterance = null;
+                showToast('Voice Error', 'Speech synthesis failed', 'error');
+            };
+            
             window.speechSynthesis.speak(utter);
+        }
+
+        function stopSpeaking() {
+            if (currentUtterance) {
+                window.speechSynthesis.cancel();
+                currentUtterance = null;
+            }
+            isSpeaking = false;
+            ttsQueue = [];
+            updateSpeakButton(false);
+        }
+
+        function updateSpeakButton(isActive) {
+            if (speakToggle) {
+                if (isActive) {
+                    speakToggle.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                    speakToggle.title = 'Click to stop speaking';
+                } else {
+                    speakToggle.innerHTML = '<i class="fas fa-volume-up"></i>';
+                    speakToggle.title = ttsEnabled ? 'Voice replies enabled' : 'Voice replies disabled';
+                }
+            }
+        }
+
+        function cleanTextForSpeech(text) {
+            // Remove markdown formatting
+            let clean = text
+                .replace(/\*\*(.*?)\*\*/g, '$1')  // Bold
+                .replace(/\*(.*?)\*/g, '$1')      // Italic
+                .replace(/`(.*?)`/g, '$1')        // Code
+                .replace(/#{1,6}\s*/g, '')        // Headers
+                .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Links
+                .replace(/\n+/g, '. ')            // Line breaks
+                .replace(/\s+/g, ' ')             // Multiple spaces
+                .trim();
+            
+            // Replace common symbols with words
+            clean = clean
+                .replace(/&/g, ' and ')
+                .replace(/%/g, ' percent ')
+                .replace(/\$/g, ' dollars ')
+                .replace(/₹/g, ' rupees ')
+                .replace(/€/g, ' euros ')
+                .replace(/£/g, ' pounds ')
+                .replace(/@/g, ' at ')
+                .replace(/#/g, ' number ')
+                .replace(/\*/g, ' ')
+                .replace(/\+/g, ' plus ')
+                .replace(/-/g, ' minus ')
+                .replace(/=/g, ' equals ')
+                .replace(/</g, ' less than ')
+                .replace(/>/g, ' greater than ');
+            
+            // Clean up multiple spaces and periods
+            clean = clean
+                .replace(/\s+/g, ' ')
+                .replace(/\.+/g, '.')
+                .replace(/\.\s*\./g, '.')
+                .trim();
+            
+            return clean;
+        }
+
+        function pickBestVoice() {
+            if (!voices || voices.length === 0) return null;
+            
+            // Prefer high-quality voices
+            const preferredVoices = voices.filter(v => 
+                v.name.includes('Google') || 
+                v.name.includes('Microsoft') || 
+                v.name.includes('Neural') ||
+                v.name.includes('Enhanced')
+            );
+            
+            if (preferredVoices.length > 0) {
+                return preferredVoices[0];
+            }
+            
+            // Fallback to first available voice
+            return voices[0];
         }
 
         function mapLangToBCP47(code) {
@@ -1923,6 +2463,446 @@
             // Fallback to English to avoid wrong voices; users can select manually.
             return 'en-US';
         }
+
+        // Voice Settings Panel Functions
+        function createVoiceSettingsPanel() {
+            const panel = document.createElement('div');
+            panel.id = 'voiceSettingsPanel';
+            panel.className = 'voice-settings-panel';
+            panel.innerHTML = `
+                <div class="voice-settings-header">
+                    <h6><i class="fas fa-cog me-2"></i>Voice Settings</h6>
+                    <button type="button" class="btn-close" onclick="closeVoiceSettings()"></button>
+                </div>
+                <div class="voice-settings-content">
+                    <div class="mb-3">
+                        <label class="form-label">Voice</label>
+                        <select id="voiceSelect" class="form-select form-select-sm">
+                            <option value="auto">Auto Select</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Speech Rate: <span id="rateValue">1.0</span></label>
+                        <input type="range" id="rateSlider" class="form-range" min="0.5" max="2.0" step="0.1" value="1.0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Pitch: <span id="pitchValue">1.0</span></label>
+                        <input type="range" id="pitchSlider" class="form-range" min="0.5" max="2.0" step="0.1" value="1.0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Volume: <span id="volumeValue">1.0</span></label>
+                        <input type="range" id="volumeSlider" class="form-range" min="0.1" max="1.0" step="0.1" value="1.0">
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="continuousMode" checked>
+                            <label class="form-check-label" for="continuousMode">
+                                Continuous Recognition
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="interimResults" checked>
+                            <label class="form-check-label" for="interimResults">
+                                Show Interim Results
+                            </label>
+                        </div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary btn-sm" onclick="testVoice()">
+                            <i class="fas fa-play me-1"></i>Test Voice
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="resetVoiceSettings()">
+                            <i class="fas fa-undo me-1"></i>Reset to Default
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(panel);
+            populateVoiceSelect();
+            setupVoiceSettingsHandlers();
+        }
+
+        function populateVoiceSelect() {
+            const voiceSelect = document.getElementById('voiceSelect');
+            if (!voiceSelect) return;
+            
+            voiceSelect.innerHTML = '<option value="auto">Auto Select</option>';
+            
+            voices.forEach((voice, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${voice.name} (${voice.lang})`;
+                if (voice === currentVoice) {
+                    option.selected = true;
+                }
+                voiceSelect.appendChild(option);
+            });
+        }
+
+        function setupVoiceSettingsHandlers() {
+            // Rate slider
+            const rateSlider = document.getElementById('rateSlider');
+            const rateValue = document.getElementById('rateValue');
+            if (rateSlider && rateValue) {
+                rateSlider.addEventListener('input', (e) => {
+                    voiceSettings.rate = parseFloat(e.target.value);
+                    rateValue.textContent = e.target.value;
+                });
+            }
+            
+            // Pitch slider
+            const pitchSlider = document.getElementById('pitchSlider');
+            const pitchValue = document.getElementById('pitchValue');
+            if (pitchSlider && pitchValue) {
+                pitchSlider.addEventListener('input', (e) => {
+                    voiceSettings.pitch = parseFloat(e.target.value);
+                    pitchValue.textContent = e.target.value;
+                });
+            }
+            
+            // Volume slider
+            const volumeSlider = document.getElementById('volumeSlider');
+            const volumeValue = document.getElementById('volumeValue');
+            if (volumeSlider && volumeValue) {
+                volumeSlider.addEventListener('input', (e) => {
+                    voiceSettings.volume = parseFloat(e.target.value);
+                    volumeValue.textContent = e.target.value;
+                });
+            }
+            
+            // Voice selection
+            const voiceSelect = document.getElementById('voiceSelect');
+            if (voiceSelect) {
+                voiceSelect.addEventListener('change', (e) => {
+                    if (e.target.value === 'auto') {
+                        currentVoice = pickBestVoice();
+                    } else {
+                        currentVoice = voices[parseInt(e.target.value)];
+                    }
+                });
+            }
+        }
+
+        function testVoice() {
+            const testText = "Hello! This is a test of the voice feature. The speech rate, pitch, and volume are now being tested.";
+            speakText(testText, { interrupt: true });
+        }
+
+        function resetVoiceSettings() {
+            voiceSettings.rate = 1.0;
+            voiceSettings.pitch = 1.0;
+            voiceSettings.volume = 1.0;
+            currentVoice = pickBestVoice();
+            
+            // Update UI
+            const rateSlider = document.getElementById('rateSlider');
+            const pitchSlider = document.getElementById('pitchSlider');
+            const volumeSlider = document.getElementById('volumeSlider');
+            const voiceSelect = document.getElementById('voiceSelect');
+            
+            if (rateSlider) rateSlider.value = 1.0;
+            if (pitchSlider) pitchSlider.value = 1.0;
+            if (volumeSlider) volumeSlider.value = 1.0;
+            if (voiceSelect) voiceSelect.value = 'auto';
+            
+            document.getElementById('rateValue').textContent = '1.0';
+            document.getElementById('pitchValue').textContent = '1.0';
+            document.getElementById('volumeValue').textContent = '1.0';
+            
+            showToast('Voice', 'Voice settings reset to default', 'success');
+        }
+
+        function closeVoiceSettings() {
+            const panel = document.getElementById('voiceSettingsPanel');
+            if (panel) {
+                panel.remove();
+            }
+        }
+
+        // Add voice settings button to the UI
+        function addVoiceSettingsButton() {
+            const voiceControls = document.querySelector('.d-flex.align-items-center.gap-2');
+            if (voiceControls) {
+                const settingsBtn = document.createElement('button');
+                settingsBtn.className = 'btn btn-sm btn-light';
+                settingsBtn.title = 'Voice Settings';
+                settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
+                settingsBtn.onclick = () => {
+                    createVoiceSettingsPanel();
+                };
+                voiceControls.appendChild(settingsBtn);
+            }
+        }
+
+        // Initialize voice settings button when page loads
+        setTimeout(addVoiceSettingsButton, 1000);
+
+        // Voice announcement functions
+        function announceStockPrediction(text) {
+            if (!ttsEnabled) return;
+            
+            // Extract key information from prediction text
+            const prediction = extractPredictionInfo(text);
+            if (prediction) {
+                const announcement = formatPredictionAnnouncement(prediction);
+                speakText(announcement, { interrupt: true });
+            }
+        }
+
+        function extractPredictionInfo(text) {
+            const prediction = {
+                symbol: null,
+                currentPrice: null,
+                predictedPrice: null,
+                recommendation: null,
+                confidence: null
+            };
+
+            // Extract stock symbol
+            const symbolMatch = text.match(/([A-Z]{2,5})\s*(?:stock|shares?|equity)/i);
+            if (symbolMatch) {
+                prediction.symbol = symbolMatch[1];
+            }
+
+            // Extract current price
+            const currentPriceMatch = text.match(/current\s*price[:\s]*₹?(\d+(?:\.\d{2})?)/i);
+            if (currentPriceMatch) {
+                prediction.currentPrice = parseFloat(currentPriceMatch[1]);
+            }
+
+            // Extract predicted price
+            const predictedPriceMatch = text.match(/predicted?\s*price[:\s]*₹?(\d+(?:\.\d{2})?)/i);
+            if (predictedPriceMatch) {
+                prediction.predictedPrice = parseFloat(predictedPriceMatch[1]);
+            }
+
+            // Extract recommendation
+            const recommendationMatch = text.match(/(buy|sell|hold|strong buy|strong sell)/i);
+            if (recommendationMatch) {
+                prediction.recommendation = recommendationMatch[1].toLowerCase();
+            }
+
+            // Extract confidence
+            const confidenceMatch = text.match(/(\d+)%?\s*confidence/i);
+            if (confidenceMatch) {
+                prediction.confidence = parseInt(confidenceMatch[1]);
+            }
+
+            return prediction.symbol || prediction.currentPrice || prediction.predictedPrice ? prediction : null;
+        }
+
+        function formatPredictionAnnouncement(prediction) {
+            let announcement = "Stock prediction update. ";
+            
+            if (prediction.symbol) {
+                announcement += `For ${prediction.symbol}. `;
+            }
+            
+            if (prediction.currentPrice && prediction.predictedPrice) {
+                const change = prediction.predictedPrice - prediction.currentPrice;
+                const changePercent = ((change / prediction.currentPrice) * 100).toFixed(1);
+                announcement += `Current price is ₹${prediction.currentPrice}. `;
+                announcement += `Predicted price is ₹${prediction.predictedPrice}. `;
+                announcement += `Expected change of ${change > 0 ? 'plus' : 'minus'} ${Math.abs(changePercent)} percent. `;
+            }
+            
+            if (prediction.recommendation) {
+                announcement += `Recommendation is ${prediction.recommendation}. `;
+            }
+            
+            if (prediction.confidence) {
+                announcement += `Confidence level is ${prediction.confidence} percent. `;
+            }
+            
+            announcement += "Please review the full analysis before making investment decisions.";
+            
+            return announcement;
+        }
+
+        // Enhanced voice commands for stock analysis
+        const enhancedVoiceCommands = {
+            ...voiceCommands,
+            'analyze': (symbol) => {
+                if (symbol) {
+                    document.getElementById('stockSymbol').value = symbol;
+                    document.getElementById('predictBtn').click();
+                } else {
+                    document.getElementById('stockSymbol').focus();
+                }
+            },
+            'what is the price': () => {
+                const symbol = document.getElementById('stockSymbol').value;
+                if (symbol) {
+                    getStockPrice(symbol);
+                } else {
+                    speakText("Please enter a stock symbol first.");
+                }
+            },
+            'show chart': () => {
+                const symbol = document.getElementById('stockSymbol').value;
+                if (symbol) {
+                    loadChart(symbol);
+                } else {
+                    speakText("Please enter a stock symbol first.");
+                }
+            },
+            'market status': () => {
+                announceMarketStatus();
+            },
+            'top gainers': () => {
+                loadTopStocks();
+                speakText("Loading top performing stocks.");
+            },
+            'news': () => {
+                window.location.href = '/news';
+                speakText("Opening market news.");
+            }
+        };
+
+        function announceMarketStatus() {
+            const now = new Date();
+            const hour = now.getHours();
+            const day = now.getDay();
+            
+            let status = "Market status update. ";
+            
+            if (day === 0 || day === 6) {
+                status += "Markets are closed for the weekend. ";
+            } else if (hour >= 9 && hour < 16) {
+                status += "Markets are currently open. ";
+            } else if (hour >= 16) {
+                status += "Markets are closed for the day. ";
+            } else {
+                status += "Markets will open at 9 AM. ";
+            }
+            
+            status += `Current time is ${now.toLocaleTimeString()}.`;
+            
+            speakText(status);
+        }
+
+        // Voice alerts for price movements
+        function setupVoiceAlerts() {
+            // Monitor for significant price changes
+            setInterval(() => {
+                if (ttsEnabled && document.getElementById('currentPrice')) {
+                    const currentPrice = parseFloat(document.getElementById('currentPrice').textContent);
+                    const previousPrice = parseFloat(document.getElementById('currentPrice').dataset.previousPrice || currentPrice);
+                    
+                    if (previousPrice && currentPrice !== previousPrice) {
+                        const change = currentPrice - previousPrice;
+                        const changePercent = ((change / previousPrice) * 100).toFixed(2);
+                        
+                        if (Math.abs(changePercent) > 2) { // Alert for >2% change
+                            const symbol = document.getElementById('stockSymbol').value;
+                            const direction = change > 0 ? 'increased' : 'decreased';
+                            const announcement = `${symbol} price has ${direction} by ${Math.abs(changePercent)} percent to ₹${currentPrice}.`;
+                            speakText(announcement, { interrupt: false });
+                        }
+                        
+                        document.getElementById('currentPrice').dataset.previousPrice = currentPrice;
+                    }
+                }
+            }, 5000); // Check every 5 seconds
+        }
+
+        // Initialize voice alerts
+        setTimeout(setupVoiceAlerts, 2000);
+
+        // Voice help system
+        function showVoiceHelp() {
+            const helpText = `
+## 🎤 Voice Commands Available
+
+**Navigation Commands:**
+• "predict" - Focus on stock symbol input
+• "portfolio" - Go to portfolio page
+• "news" - Go to news page
+• "dashboard" - Go to main dashboard
+
+**Stock Analysis Commands:**
+• "analyze [symbol]" - Analyze specific stock
+• "what is the price" - Get current stock price
+• "show chart" - Display stock chart
+• "market status" - Check market hours
+• "top gainers" - Show top performing stocks
+
+**Voice Control Commands:**
+• "help" - Show this help message
+• "clear" - Clear chat messages
+• "stop" - Stop current speech
+• "stop listening" - End voice recognition
+
+**Voice Features:**
+• Click microphone for single recognition
+• Hold microphone for continuous mode
+• Voice replies can be enabled/disabled
+• Customizable speech rate, pitch, and volume
+• Automatic stock prediction announcements
+• Price movement alerts
+
+**Tips:**
+• Speak clearly and at normal pace
+• Use specific stock symbols (e.g., "TCS", "RELIANCE")
+• Voice commands work in any language you select
+• Long press microphone for hands-free operation
+            `;
+            
+            addChatMessage(helpText, 'ai');
+            
+            if (ttsEnabled) {
+                const spokenHelp = "Voice commands available: predict, portfolio, news, dashboard, analyze, what is the price, show chart, market status, top gainers, help, clear, stop, and stop listening. Click the microphone to start voice input, or hold it for continuous mode.";
+                speakText(spokenHelp);
+            }
+        }
+
+        // Voice tutorial for new users
+        function showVoiceTutorial() {
+            if (!localStorage.getItem('voiceTutorialShown')) {
+                setTimeout(() => {
+                    const tutorialText = `
+## 🎤 Welcome to Voice Features!
+
+I've enhanced the chatbot with advanced voice capabilities:
+
+**Try saying:**
+• "Hello" - Start a conversation
+• "Help" - See all voice commands
+• "Predict TCS" - Get stock analysis
+• "Market status" - Check if markets are open
+
+**Voice Controls:**
+• 🎤 Click microphone to start voice input
+• 🔄 Hold microphone for continuous listening
+• 🔊 Click speaker to enable/disable voice replies
+• ⚙️ Click settings to customize voice options
+
+**Features:**
+• Real-time speech recognition
+• Natural language processing
+• Voice announcements for predictions
+• Price movement alerts
+• Multi-language support
+
+*This tutorial won't show again. You can always say "help" for voice commands.*
+                    `;
+                    
+                    addChatMessage(tutorialText, 'ai');
+                    
+                    if (ttsEnabled) {
+                        speakText("Welcome to the enhanced voice features! Try saying 'help' to see all available voice commands, or 'predict TCS' to get a stock analysis.");
+                    }
+                    
+                    localStorage.setItem('voiceTutorialShown', 'true');
+                }, 3000);
+            }
+        }
+
+        // Show tutorial for new users
+        setTimeout(showVoiceTutorial, 1000);
 
         // UI Helper Functions
         function updateEnhancedRecommendation(recommendation) {
